@@ -2,11 +2,8 @@
 Lokpack is a free (as in freedom) and open source ransomware 
 tool targeting x64 Linux systems, written in C.
 
-> [!CAUTION]
-> This tool is designed and shared only for educational and 
-> research purposes. I do not support or promote any kind of illegal or 
-> unethical use of this tool. If you are crimminal and you want to use this tool 
-> for illegal or unethical purposes, please fuck off.
+![showcase](https://github.com/ngn13/lokpack/assets/78868991/d1d8e490-b7d3-4f21-aeca-368eb0a0a0d8)
+
 
 ## Features
 - Build static encryption and decrypiton tools
