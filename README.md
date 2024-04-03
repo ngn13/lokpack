@@ -1,6 +1,6 @@
-# Lokpack | Free and open source ransomware
+# Lokpack | Ransomware tooling for x84_64 Linux
 Lokpack is a free (as in freedom) and open source ransomware 
-tool targeting x64 Linux systems, written in C.
+tool targeting x86_64 Linux systems, written in C.
 
 ![showcase](https://github.com/ngn13/lokpack/assets/78868991/d1d8e490-b7d3-4f21-aeca-368eb0a0a0d8)
 
