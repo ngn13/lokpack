@@ -4,7 +4,6 @@ tool targeting x86_64 Linux systems, written in C.
 
 ![showcase](https://github.com/ngn13/lokpack/assets/78868991/d1d8e490-b7d3-4f21-aeca-368eb0a0a0d8)
 
-
 ## Features
 - Build static encryption and decrypiton tools
 - Steal files using a FTP(S) server
@@ -64,6 +63,11 @@ use `pyftpdlib`:
 python3 -m pyftpdlib -w
 # -w for write access
 ```
+
+## Resources
+- [C-Thread-Pool](https://github.com/Pithikos/C-Thread-Pool)
+- [CURL ftpupload](https://curl.se/libcurl/c/ftpupload.html)
+- [CURL options](https://curl.se/libcurl/c/easy_setopt_options.html)
 
 ---
 <img src="https://files.ngn.tf/gpl3.png" width="200px">

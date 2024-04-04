@@ -1,6 +1,6 @@
 /*
  *
- * !!THIS NOT PART OF KEYDOT!!
+ * NOT PART OF THE LOKPACK PROJECT !!! 
  * ========================================
  * See https://github.com/Pithikos/C-Thread-Pool
  * Licensed under MIT
