@@ -53,6 +53,7 @@ For example to encrypt `.sql` and `.db` files located at `/var` and `/home` with
 ```bash
 ./encryptor --threads=100 --paths=/var,/home --exts=sql,db --no-ftp
 ```
+If you want to encrypt all files with all extensions, set `--exts` to `ALL`.
 
 ### Setting up FTP(S)
 For an actual FTP(S) setup you should install a FTP daemon such as `vsftpd` or `bftpd`. But for testing you can 

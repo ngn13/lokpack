@@ -32,6 +32,9 @@ void replace(char *s, char o, char n) {
 
 bool has_valid_ext(char *file, clist_t *list) {
   for (int i = 0; i < list->s; i++) {
+    if(eq(list->c[i], "ALL"))
+      return true;
+
     char ext[strlen(list->c[i]) + 2];
     sprintf(ext, ".%s", list->c[i]);
 
