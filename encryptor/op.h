@@ -1,9 +1,5 @@
 #pragma once
-#include <errno.h>
 #include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
 
 #include "../lib/log.h"
 
@@ -11,14 +7,14 @@
 #define TYPE_STR 2
 #define TYPE_INT 3
 
-struct Option {
+typedef struct Option {
   char *value;
   char *name;
   char *desc;
   int type;
-};
+} option_t;
 
-extern struct Option options[];
+extern option_t options[];
 char *extract_value(char *);
 bool parse_opt(char *);
 bool get_bool(char *);

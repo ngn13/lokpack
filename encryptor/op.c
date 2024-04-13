@@ -9,7 +9,7 @@
 #include "../lib/util.h"
 #include "op.h"
 
-struct Option options[] = {
+option_t options[] = {
     {.name = "threads",
      .type = TYPE_INT,
      .value = "20",
@@ -62,12 +62,12 @@ char *extract_value(char *o) {
 
 void print_opts() {
   int max_len = 0;
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     if (max_len < strlen(options[i].name))
       max_len = strlen(options[i].name);
   }
 
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     char spacebuf[(max_len - strlen(options[i].name)) + 2];
     for (int i = 0; i < sizeof(spacebuf); i++)
       spacebuf[i] = ' ';
@@ -84,7 +84,7 @@ void print_opts() {
 }
 
 int get_int(char *name) {
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     if (eq(options[i].name, name))
       return atoi(options[i].value);
   }
@@ -93,7 +93,7 @@ int get_int(char *name) {
 }
 
 bool get_bool(char *name) {
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     if (eq(options[i].name, name))
       return eq(options[i].value, "true");
   }
@@ -102,7 +102,7 @@ bool get_bool(char *name) {
 }
 
 char *get_str(char *name) {
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     if (eq(options[i].name, name))
       return options[i].value;
   }
@@ -114,12 +114,12 @@ void print_help() {
   info("Listing available options:");
 
   int max_len = 0;
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     if (max_len < strlen(options[i].name))
       max_len = strlen(options[i].name);
   }
 
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     char spacebuf[(max_len - strlen(options[i].name)) + 2];
     for (int i = 0; i < sizeof(spacebuf); i++)
       spacebuf[i] = ' ';
@@ -138,7 +138,7 @@ bool parse_opt(char *o) {
     exit(EXIT_SUCCESS);
   }
 
-  for (int i = 0; i < sizeof(options) / sizeof(struct Option); i++) {
+  for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
     char fullop[strlen(options[i].name) + 5];
     sprintf(fullop, "--%s", options[i].name);
     if (!startswith(o, fullop))
