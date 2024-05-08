@@ -10,42 +10,15 @@
 #include "op.h"
 
 option_t options[] = {
-    {.name = "threads",
-     .type = TYPE_INT,
-     .value = "20",
-     .desc = "Thread count for the thread pool"},
-    {.name = "paths",
-     .type = TYPE_STR,
-     .value = "/example",
-     .desc = "Paths to look for files"},
-    {.name = "exts",
-     .type = TYPE_STR,
-     .value = "txt,pdf,db,sql",
-     .desc = "Valid extensions for files"},
-    {.name = "ftp-url",
-     .type = TYPE_STR,
-     .value = "ftp://example",
-     .desc = "Address for the FTP(S) server"},
-    {.name = "ftp-user",
-     .type = TYPE_STR,
-     .value = "anonymous",
-     .desc = "FTP(S) username"},
-    {.name = "ftp-pwd",
-     .type = TYPE_STR,
-     .value = "anonymous",
-     .desc = "FTP(S) password"},
-    {.name = "no-ftp",
-     .type = TYPE_BOOL,
-     .value = "false",
-     .desc = "Disable stealing files with FTP(S)"},
-    {.name = "destruct",
-     .type = TYPE_BOOL,
-     .value = "false",
-     .desc = "Self destruct the program"},
-    {.name = "debug",
-     .type = TYPE_BOOL,
-     .value = "false",
-     .desc = "Enable debug output"},
+    {.name = "threads",  .type = TYPE_INT,  .value = "20",             .desc = "Thread count for the thread pool"  },
+    {.name = "paths",    .type = TYPE_STR,  .value = "/example",       .desc = "Paths to look for files"           },
+    {.name = "exts",     .type = TYPE_STR,  .value = "txt,pdf,db,sql", .desc = "Valid extensions for files"        },
+    {.name = "ftp-url",  .type = TYPE_STR,  .value = "ftp://example",  .desc = "Address for the FTP(S) server"     },
+    {.name = "ftp-user", .type = TYPE_STR,  .value = "anonymous",      .desc = "FTP(S) username"                   },
+    {.name = "ftp-pwd",  .type = TYPE_STR,  .value = "anonymous",      .desc = "FTP(S) password"                   },
+    {.name = "no-ftp",   .type = TYPE_BOOL, .value = "false",          .desc = "Disable stealing files with FTP(S)"},
+    {.name = "destruct", .type = TYPE_BOOL, .value = "false",          .desc = "Self destruct the program"         },
+    {.name = "debug",    .type = TYPE_BOOL, .value = "false",          .desc = "Enable debug output"               },
 };
 
 char *extract_value(char *o) {
@@ -74,12 +47,12 @@ void print_opts() {
     spacebuf[sizeof(spacebuf) - 1] = '\0';
 
     if (options[i].type == TYPE_BOOL)
-      printf(FG_BOLD "    %s" FG_RESET "%s=> %s\n" FG_RESET, options[i].name,
-             spacebuf,
-             get_bool(options[i].name) ? FG_GREEN "true" : FG_RED "false");
+      printf(FG_BOLD "    %s" FG_RESET "%s=> %s\n" FG_RESET,
+          options[i].name,
+          spacebuf,
+          get_bool(options[i].name) ? FG_GREEN "true" : FG_RED "false");
     else
-      printf(FG_BOLD "    %s" FG_RESET "%s=> %s\n" FG_RESET, options[i].name,
-             spacebuf, options[i].value);
+      printf(FG_BOLD "    %s" FG_RESET "%s=> %s\n" FG_RESET, options[i].name, spacebuf, options[i].value);
   }
 }
 
@@ -120,13 +93,14 @@ void print_help() {
   }
 
   for (int i = 0; i < sizeof(options) / sizeof(option_t); i++) {
-    char spacebuf[(max_len - strlen(options[i].name)) + 2];
-    for (int i = 0; i < sizeof(spacebuf); i++)
-      spacebuf[i] = ' ';
-    spacebuf[sizeof(spacebuf) - 1] = '\0';
+    int  spacesz = (max_len - strlen(options[i].name)) + 2;
+    char spacebuf[spacesz];
 
-    printf(FG_BOLD "    --%s" FG_RESET "%s=> %s\n" FG_RESET, options[i].name,
-           spacebuf, options[i].desc);
+    for (int e = 0; e < spacesz; e++)
+      spacebuf[e] = ' ';
+    spacebuf[spacesz - 1] = '\0';
+
+    printf(FG_BOLD "    --%s" FG_RESET "%s=> %s\n" FG_RESET, options[i].name, spacebuf, options[i].desc);
   }
 
   printf("\n");

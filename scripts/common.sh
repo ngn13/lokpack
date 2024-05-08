@@ -1,5 +1,15 @@
 #!/bin/bash
 
+BOLD="\e[1m"
+RESET="\e[0m"
+GREEN="\e[32m"
+BLUE="\e[34m"
+RED="\e[31m"
+
+_echo() {
+  echo -e "${1}${RESET}"
+}
+
 openssl_url="https://www.openssl.org/source/openssl-3.1.2.tar.gz"
 openssl_hash="1d7861f969505e67b8677e205afd9ff4"
 

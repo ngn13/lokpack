@@ -1,6 +1,6 @@
 /*
  *
- * NOT PART OF THE LOKPACK PROJECT !!! 
+ * NOT PART OF THE LOKPACK PROJECT !!!
  * ========================================
  * See https://github.com/Pithikos/C-Thread-Pool
  * Licensed under MIT
@@ -18,15 +18,15 @@
 #include <unistd.h>
 
 #define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+#define TOSTRING(x)  STRINGIFY(x)
 
 static volatile int threads_keepalive;
 static volatile int threads_on_hold;
 
 typedef struct bsem {
   pthread_mutex_t mutex;
-  pthread_cond_t cond;
-  int v;
+  pthread_cond_t  cond;
+  int             v;
 } bsem;
 
 typedef struct job {
@@ -37,37 +37,37 @@ typedef struct job {
 
 typedef struct jobqueue {
   pthread_mutex_t rwmutex;
-  job *front;
-  job *rear;
-  bsem *has_jobs;
-  int len;
+  job            *front;
+  job            *rear;
+  bsem           *has_jobs;
+  int             len;
 } jobqueue;
 
 typedef struct thread {
-  int id;
-  pthread_t pthread;
+  int             id;
+  pthread_t       pthread;
   struct thpool_ *thpool_p;
 } thread;
 
 typedef struct thpool_ {
-  thread **threads;
-  volatile int num_threads_alive;
-  volatile int num_threads_working;
+  thread        **threads;
+  volatile int    num_threads_alive;
+  volatile int    num_threads_working;
   pthread_mutex_t thcount_lock;
-  pthread_cond_t threads_all_idle;
-  jobqueue jobqueue;
+  pthread_cond_t  threads_all_idle;
+  jobqueue        jobqueue;
 } thpool_;
 
-static int thread_init(thpool_ *thpool_p, struct thread **thread_p, int id);
+static int   thread_init(thpool_ *thpool_p, struct thread **thread_p, int id);
 static void *thread_do(struct thread *thread_p);
-static void thread_hold(int sig_id);
-static void thread_destroy(struct thread *thread_p);
+static void  thread_hold(int sig_id);
+static void  thread_destroy(struct thread *thread_p);
 
-static int jobqueue_init(jobqueue *jobqueue_p);
-static void jobqueue_clear(jobqueue *jobqueue_p);
-static void jobqueue_push(jobqueue *jobqueue_p, struct job *newjob_p);
+static int         jobqueue_init(jobqueue *jobqueue_p);
+static void        jobqueue_clear(jobqueue *jobqueue_p);
+static void        jobqueue_push(jobqueue *jobqueue_p, struct job *newjob_p);
 static struct job *jobqueue_pull(jobqueue *jobqueue_p);
-static void jobqueue_destroy(jobqueue *jobqueue_p);
+static void        jobqueue_destroy(jobqueue *jobqueue_p);
 
 static void bsem_init(struct bsem *bsem_p, int value);
 static void bsem_reset(struct bsem *bsem_p);
@@ -77,7 +77,7 @@ static void bsem_wait(struct bsem *bsem_p);
 
 struct thpool_ *thpool_init(int num_threads) {
 
-  threads_on_hold = 0;
+  threads_on_hold   = 0;
   threads_keepalive = 1;
 
   if (num_threads < 0) {
@@ -88,7 +88,7 @@ struct thpool_ *thpool_init(int num_threads) {
   thpool_p = (struct thpool_ *)malloc(sizeof(struct thpool_));
   if (thpool_p == NULL)
     return NULL;
-  thpool_p->num_threads_alive = 0;
+  thpool_p->num_threads_alive   = 0;
   thpool_p->num_threads_working = 0;
 
   if (jobqueue_init(&thpool_p->jobqueue) == -1) {
@@ -96,8 +96,7 @@ struct thpool_ *thpool_init(int num_threads) {
     return NULL;
   }
 
-  thpool_p->threads =
-      (struct thread **)malloc(num_threads * sizeof(struct thread *));
+  thpool_p->threads = (struct thread **)malloc(num_threads * sizeof(struct thread *));
   if (thpool_p->threads == NULL) {
     jobqueue_destroy(&thpool_p->jobqueue);
     free(thpool_p);
@@ -116,8 +115,7 @@ struct thpool_ *thpool_init(int num_threads) {
   return thpool_p;
 }
 
-int thpool_add_work(thpool_ *thpool_p, void (*function_p)(void *),
-                    void *arg_p) {
+int thpool_add_work(thpool_ *thpool_p, void (*function_p)(void *), void *arg_p) {
   job *newjob;
 
   newjob = (struct job *)malloc(sizeof(struct job));
@@ -126,7 +124,7 @@ int thpool_add_work(thpool_ *thpool_p, void (*function_p)(void *),
   }
 
   newjob->function = function_p;
-  newjob->arg = arg_p;
+  newjob->arg      = arg_p;
 
   jobqueue_push(&thpool_p->jobqueue, newjob);
   return 0;
@@ -145,7 +143,7 @@ void thpool_destroy(thpool_ *thpool_p) {
     return;
 
   volatile int threads_total = thpool_p->num_threads_alive;
-  threads_keepalive = 0;
+  threads_keepalive          = 0;
 
   double TIMEOUT = 1.0;
   time_t start, end;
@@ -193,10 +191,9 @@ static int thread_init(thpool_ *thpool_p, struct thread **thread_p, int id) {
     return -1;
 
   (*thread_p)->thpool_p = thpool_p;
-  (*thread_p)->id = id;
+  (*thread_p)->id       = id;
 
-  pthread_create(&(*thread_p)->pthread, NULL, (void *(*)(void *))thread_do,
-                 (*thread_p));
+  pthread_create(&(*thread_p)->pthread, NULL, (void *(*)(void *))thread_do, (*thread_p));
   pthread_detach((*thread_p)->pthread);
   return 0;
 }
@@ -216,7 +213,7 @@ static void *thread_do(struct thread *thread_p) {
 
   struct sigaction act;
   sigemptyset(&act.sa_mask);
-  act.sa_flags = SA_ONSTACK;
+  act.sa_flags   = SA_ONSTACK;
   act.sa_handler = thread_hold;
   sigaction(SIGUSR1, &act, NULL);
 
@@ -233,10 +230,10 @@ static void *thread_do(struct thread *thread_p) {
 
       void (*func_buff)(void *);
       void *arg_buff;
-      job *job_p = jobqueue_pull(&thpool_p->jobqueue);
+      job  *job_p = jobqueue_pull(&thpool_p->jobqueue);
       if (job_p) {
         func_buff = job_p->function;
-        arg_buff = job_p->arg;
+        arg_buff  = job_p->arg;
         func_buff(arg_buff);
         free(job_p);
       }
@@ -256,12 +253,14 @@ static void *thread_do(struct thread *thread_p) {
   return NULL;
 }
 
-static void thread_destroy(thread *thread_p) { free(thread_p); }
+static void thread_destroy(thread *thread_p) {
+  free(thread_p);
+}
 
 static int jobqueue_init(jobqueue *jobqueue_p) {
-  jobqueue_p->len = 0;
+  jobqueue_p->len   = 0;
   jobqueue_p->front = NULL;
-  jobqueue_p->rear = NULL;
+  jobqueue_p->rear  = NULL;
 
   jobqueue_p->has_jobs = (struct bsem *)malloc(sizeof(struct bsem));
   if (jobqueue_p->has_jobs == NULL)
@@ -277,7 +276,7 @@ static void jobqueue_clear(jobqueue *jobqueue_p) {
     free(jobqueue_pull(jobqueue_p));
 
   jobqueue_p->front = NULL;
-  jobqueue_p->rear = NULL;
+  jobqueue_p->rear  = NULL;
   bsem_reset(jobqueue_p->has_jobs);
   jobqueue_p->len = 0;
 }
@@ -289,11 +288,11 @@ static void jobqueue_push(jobqueue *jobqueue_p, struct job *newjob) {
   switch (jobqueue_p->len) {
   case 0:
     jobqueue_p->front = newjob;
-    jobqueue_p->rear = newjob;
+    jobqueue_p->rear  = newjob;
     break;
   default:
     jobqueue_p->rear->prev = newjob;
-    jobqueue_p->rear = newjob;
+    jobqueue_p->rear       = newjob;
   }
   jobqueue_p->len++;
 
@@ -310,8 +309,8 @@ static struct job *jobqueue_pull(jobqueue *jobqueue_p) {
     break;
   case 1:
     jobqueue_p->front = NULL;
-    jobqueue_p->rear = NULL;
-    jobqueue_p->len = 0;
+    jobqueue_p->rear  = NULL;
+    jobqueue_p->len   = 0;
     break;
   default:
     jobqueue_p->front = job_p->prev;

