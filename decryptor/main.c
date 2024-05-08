@@ -22,9 +22,6 @@
 
 // clang-format on
 
-#include <fcntl.h>
-#include <sys/mman.h>
-
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,20 +30,26 @@
 #include <unistd.h>
 
 #include "../lib/log.h"
+#include "../lib/pool.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
 
-void decrypt_file(char *in_file, char *ext) {
+char *EXT = NULL;
+
+void decrypt_file(void *arg) {
+  EVP_PKEY_CTX *ctx = NULL;
+
   unsigned char in_buf[OUTPUT_SIZE];
   unsigned char out_buf[OUTPUT_SIZE];
-
-  bool success = false;
 
   size_t in_len  = 0;
   size_t out_len = 0;
 
-  int  name_sz = strlen(in_file) - (strlen(ext) + 1);
-  char out_file[name_sz + 1];
+  bool success = false;
+
+  char *in_file = arg;
+  int   name_sz = strlen(in_file) - (strlen(EXT) + 1);
+  char  out_file[name_sz + 1];
 
   for (int i = 0; i < name_sz; i++)
     out_file[i] = in_file[i];
@@ -60,9 +63,15 @@ void decrypt_file(char *in_file, char *ext) {
     goto FREE;
   }
 
+  ctx = rsa_decrypt_init();
+  if (NULL == ctx) {
+    debug("(%s) Failed to create ctx", in_file);
+    goto FREE;
+  }
+
   while ((in_len = fread(in_buf, 1, OUTPUT_SIZE, in)) > 0) {
     out_len = OUTPUT_SIZE;
-    if (!rsa_decrypt(in_buf, in_len, out_buf, &out_len)) {
+    if (!rsa_decrypt(ctx, in_buf, in_len, out_buf, &out_len)) {
       debug("(%s) Failed to decrypt (%lu -> %lu)", in_file, in_len, out_len);
       goto FREE;
     }
@@ -89,6 +98,9 @@ void decrypt_file(char *in_file, char *ext) {
   success = true;
 
 FREE:
+  if (NULL != ctx)
+    rsa_decrypt_free(ctx);
+
   if (NULL != in)
     fclose(in);
 
@@ -99,9 +111,11 @@ FREE:
     error("Failed to decrypt file: %s", in_file);
     unlink(out_file);
   }
+
+  free(in_file);
 }
 
-void decrypt_files(char *path, char *ext) {
+void decrypt_files(char *path, threadpool pool) {
   if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev") || eq(path, "/run"))
     return;
 
@@ -131,16 +145,16 @@ void decrypt_files(char *path, char *ext) {
 
     if ((st.st_mode & S_IFMT) == S_IFDIR) {
       debug("Decrypting directory: %s...", fp);
-      decrypt_files(fp, ext);
+      decrypt_files(fp, pool);
       continue;
     }
 
     if (st.st_size <= 0)
       continue;
 
-    if (has_valid_ext(fp, ext)) {
+    if (has_valid_ext(fp, EXT)) {
       debug("Decrypting file: %s...", fp);
-      decrypt_file(fp, ext);
+      thpool_add_work(pool, decrypt_file, strdup(fp));
     }
   }
 
@@ -159,6 +173,7 @@ int main(int argc, char *argv[]) {
 
   char ext[8] = {0}, *sum = get_md5(BUILD_PUB);
   snprintf(ext, 8, "%.5s", sum);
+  EXT = ext;
 
   if (access("/", R_OK & W_OK) < 0) {
     error("Failed to access the root path");
@@ -170,11 +185,14 @@ int main(int argc, char *argv[]) {
     goto DONE;
   }
 
+  threadpool pool = thpool_init(20);
   if (argc >= 2)
-    decrypt_files(argv[1], ext);
+    decrypt_files(argv[1], pool);
   else
-    decrypt_files("/", ext);
+    decrypt_files("/", pool);
+  thpool_wait(pool);
 
 DONE:
+  thpool_destroy(pool);
   rsa_free();
 }

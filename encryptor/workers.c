@@ -1,6 +1,3 @@
-#include <fcntl.h>
-#include <sys/mman.h>
-
 #include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -126,10 +123,10 @@ FREE:
   if (NULL != out)
     fclose(out);
 
-  free(in_file);
-
   if (!success) {
     error("Failed to encrypt file: %s", in_file);
     unlink(out_file);
   }
+
+  free(in_file);
 }

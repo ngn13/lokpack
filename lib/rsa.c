@@ -8,8 +8,7 @@
 #include "log.h"
 #include "rsa.h"
 
-EVP_PKEY_CTX *ctx = NULL;
-EVP_PKEY     *key = NULL;
+EVP_PKEY *key = NULL;
 
 void rsa_openssl_error(char *buf) {
   long err = ERR_get_error();
@@ -35,31 +34,24 @@ bool rsa_init(char *buf, bool is_public) {
     return false;
   }
 
-  if (!is_public) {
-    ctx = EVP_PKEY_CTX_new(key, NULL);
-    if (NULL == ctx) {
-      debug("Failed to init ctx");
-      return false;
-    }
-
-    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
-      debug("Failed to create a init decrypt ctx");
-      return false;
-    }
-  }
-
   return true;
 }
 
 void rsa_free() {
-  if (NULL != ctx)
-    EVP_PKEY_CTX_free(ctx);
-
   if (NULL != key)
     EVP_PKEY_free(key);
 }
 
-bool rsa_decrypt(unsigned char *enc, size_t len, unsigned char *out, size_t *outlen) {
+EVP_PKEY_CTX *rsa_decrypt_init() {
+  EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);
+  if (NULL == ctx)
+    return NULL;
+
+  EVP_PKEY_decrypt_init(ctx);
+  return ctx;
+}
+
+bool rsa_decrypt(EVP_PKEY_CTX *ctx, unsigned char *enc, size_t len, unsigned char *out, size_t *outlen) {
   if (EVP_PKEY_decrypt(ctx, out, outlen, enc, len) <= 0) {
     char err[256];
     rsa_openssl_error(err);
@@ -68,6 +60,11 @@ bool rsa_decrypt(unsigned char *enc, size_t len, unsigned char *out, size_t *out
     return false;
   }
   return true;
+}
+
+void rsa_decrypt_free(EVP_PKEY_CTX *c) {
+  if (NULL != c)
+    EVP_PKEY_CTX_free(c);
 }
 
 EVP_PKEY_CTX *rsa_encrypt_init() {

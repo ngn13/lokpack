@@ -30,10 +30,10 @@
 #include <unistd.h>
 
 #include "../lib/log.h"
+#include "../lib/pool.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
 #include "op.h"
-#include "pool.h"
 #include "workers.h"
 
 void upload_files(char *path, clist_t *exts, threadpool pool) {

@@ -9,7 +9,7 @@ fi
 source scripts/common.sh
 
 # vars
-VERSION="1.1"
+VERSION="1.2"
 PUB_TEMP="/tmp/lokpack_pub"
 PRIV_TEMP="/tmp/lokpack_priv"
 DEBUG_MODE="false"
@@ -24,8 +24,8 @@ PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
 PUB_KEY=$(sed -z 's/\n/\\n/g' < $PUB_TEMP)
 
 # flags
-ENC_LIBS="-lcrypto -lcurl -lpthread"
-DEC_LIBS="-lcrypto"
+ENC_LIBS="-lpthread -lcrypto -lcurl"
+DEC_LIBS="-lpthread -lcrypto"
 
 if [[ "$1" == "-debug" ]]; then
   _echo "${BOLD}=========================================================="
