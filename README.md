@@ -14,11 +14,15 @@ tool targeting x86_64 Linux systems, written in C.
 ## Build
 Required libraries/tools:
 - A (x86_64) Linux system
-- gcc and other build tools 
+- gcc and other build tools
 - curl (and headers)
 - openssl (and headers)
 
-To generate static builds, you will need static libraries of curl and openssl, 
+> [!WARNING]
+> Do NOT build from the latest commit, check out the latest tag
+> or download the [latest release](https://github.com/ngn13/ezcat/tags).
+
+To generate static builds, you will need static libraries of curl and openssl,
 **if your distro does not package these**, you can build them yourself or use the automated
 build scripts:
 ```bash
