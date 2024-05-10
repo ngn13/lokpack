@@ -9,7 +9,6 @@ fi
 source scripts/common.sh
 
 # vars
-VERSION="1.3"
 PUB_TEMP="/tmp/lokpack_pub"
 PRIV_TEMP="/tmp/lokpack_priv"
 DEBUG_MODE="false"
@@ -23,9 +22,16 @@ openssl rsa -in "$PRIV_TEMP" -pubout -out "$PUB_TEMP" 2> /dev/null
 PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
 PUB_KEY=$(sed -z 's/\n/\\n/g' < $PUB_TEMP)
 
+rm "$PRIV_TEMP"
+rm "$PUB_TEMP"
+
 # flags
 ENC_LIBS="-lpthread -lcrypto -lcurl"
 DEC_LIBS="-lpthread -lcrypto"
+
+if [[ -z "$CC" ]]; then
+  CC=gcc
+fi
 
 if [[ "$1" == "-debug" ]]; then
   _echo "${BOLD}=========================================================="
@@ -57,12 +63,12 @@ fi
 # build
 mkdir -pv dist
 
-gcc $CFLAGS -o dist/encryptor     \
+$CC $CFLAGS -o dist/encryptor     \
   -DVERSION=\"${VERSION}\"        \
   -DBUILD_PUB="\"${PUB_KEY}\""    \
   encryptor/*.c lib/*.c $ENC_LIBS
 
-gcc $CFLAGS -o dist/decryptor     \
+$CC $CFLAGS -o dist/decryptor     \
   -DVERSION=\"${VERSION}\"        \
   -DBUILD_PUB="\"${PUB_KEY}\""    \
   -DBUILD_PRIV="\"${PRIV_KEY}\""  \

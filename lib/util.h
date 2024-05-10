@@ -23,4 +23,11 @@ void     clist_free(clist_t *);
 
 void  replace(char *, char, char);
 char *get_md5(char *);
-bool  copy_stat(int, int);
+
+#ifdef _WIN64
+bool copy_stat(char *, char *);
+#else
+bool copy_stat(int, int);
+#endif
+
+bool is_root();

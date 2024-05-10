@@ -5,6 +5,27 @@
 
 bool DEBUG = false;
 
+#ifdef _WIN64
+
+#include <windows.h>
+
+void log_init() {
+  DWORD  mode;
+  HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+
+  if (GetConsoleMode(out, &mode) == 0)
+    return;
+
+  mode |= ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+  SetConsoleMode(out, mode);
+}
+
+#else
+
+void log_init(){};
+
+#endif
+
 void info(const char *msg, ...) {
   va_list args;
   va_start(args, msg);

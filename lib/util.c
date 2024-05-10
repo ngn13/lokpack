@@ -149,10 +149,72 @@ bool eq(char *s1, char *s2) {
   return strcmp(s1, s2) == 0;
 }
 
+#ifdef _WIN64
+
+#include <aclapi.h>
+#include <windows.h>
+
+bool copy_stat(char *src, char *dst) {
+  PSECURITY_DESCRIPTOR desc    = NULL;
+  bool                 success = false;
+
+  if (GetNamedSecurityInfo(
+          src, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, NULL, NULL, NULL, NULL, &desc) !=
+      ERROR_SUCCESS)
+    goto END;
+
+  LPBOOL owner_defaulted, dacl_defaulted, hasdcl;
+  PSID   owner;
+  PACL   dacl;
+
+  GetSecurityDescriptorOwner(desc, &owner, owner_defaulted);
+  GetSecurityDescriptorDacl(desc, hasdcl, &dacl, dacl_defaulted);
+
+  if (hasdcl) {
+    success =
+        SetNamedSecurityInfo(
+            dst, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, owner, NULL, dacl, NULL) != 0;
+    goto END;
+  }
+
+  success = SetNamedSecurityInfo(dst, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, owner, NULL, NULL, NULL) != 0;
+
+END:
+  if (NULL != desc)
+    LocalFree(desc);
+  return success;
+}
+
+bool is_root() {
+  HANDLE htoken = NULL;
+  bool   res    = false;
+
+  OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &htoken);
+
+  TOKEN_ELEVATION elevation;
+  DWORD           size;
+
+  if (!GetTokenInformation(htoken, TokenElevation, &elevation, sizeof(elevation), &size))
+    goto END;
+  res = elevation.TokenIsElevated;
+
+END:
+  if (NULL != htoken)
+    CloseHandle(htoken);
+  return res;
+}
+
+#else
+
 bool copy_stat(int src, int dst) {
   struct stat st;
   if (fstat(src, &st) < 0)
     return false;
-
   return !(fchown(dst, st.st_uid, st.st_gid) < 0 || fchmod(dst, st.st_mode) < 0);
 }
+
+bool is_root() {
+  return getuid() == 0;
+}
+
+#endif
