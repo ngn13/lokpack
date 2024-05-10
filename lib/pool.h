@@ -14,7 +14,9 @@ typedef struct thpool_ *threadpool;
 threadpool              thpool_init(int);
 int                     thpool_add_work(threadpool, void (*function_p)(void *), void *);
 void                    thpool_wait(threadpool);
+#ifndef _WIN_64
 void                    thpool_pause(threadpool);
+#endif
 void                    thpool_resume(threadpool);
 void                    thpool_destroy(threadpool);
 int                     thpool_num_threads_working(threadpool);

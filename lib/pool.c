@@ -7,13 +7,14 @@
  *
  */
 
+#define _GNU_SOURCE
+
 #include "pool.h"
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/prctl.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -169,12 +170,14 @@ void thpool_destroy(thpool_ *thpool_p) {
   free(thpool_p);
 }
 
+#ifndef _WIN64
 void thpool_pause(thpool_ *thpool_p) {
   int n;
   for (n = 0; n < thpool_p->num_threads_alive; n++) {
     pthread_kill(thpool_p->threads[n]->pthread, SIGUSR1);
   }
 }
+#endif
 
 void thpool_resume(thpool_ *thpool_p) {
   (void)thpool_p;
@@ -208,14 +211,16 @@ static void thread_hold(int sig_id) {
 static void *thread_do(struct thread *thread_p) {
   char thread_name[16] = {0};
   snprintf(thread_name, 16, TOSTRING(THPOOL_THREAD_NAME) "-%d", thread_p->id);
-  prctl(PR_SET_NAME, thread_name);
+  pthread_setname_np(thread_p->pthread, thread_name);
   thpool_ *thpool_p = thread_p->thpool_p;
 
+#ifndef _WIN64
   struct sigaction act;
   sigemptyset(&act.sa_mask);
   act.sa_flags   = SA_ONSTACK;
   act.sa_handler = thread_hold;
   sigaction(SIGUSR1, &act, NULL);
+#endif
 
   pthread_mutex_lock(&thpool_p->thcount_lock);
   thpool_p->num_threads_alive += 1;
