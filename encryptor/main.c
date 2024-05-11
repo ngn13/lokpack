@@ -33,8 +33,8 @@
 #include "../lib/pool.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
-#include "op.h"
 #include "workers.h"
+#include "op.h"
 
 void upload_files(char *path, clist_t *exts, threadpool pool) {
   DIR *dir = opendir(path);
@@ -143,6 +143,11 @@ int main(int argc, char **argv) {
   }
 
   threadpool pool  = thpool_init(get_int("threads"));
+  if(NULL == pool){
+    error("Failed to create the threadpool");
+    return ret;
+  }
+
   clist_t   *paths = clist_from_str(get_str("paths"));
   clist_t   *exts  = clist_from_str(get_str("exts"));
 

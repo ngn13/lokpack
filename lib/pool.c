@@ -1,3 +1,74 @@
+#ifdef _WIN64
+
+#include <windows.h>
+#include <stdio.h>
+#include "pool.h"
+
+typedef struct thpool_ {
+  HANDLE *handles;
+  size_t indx;
+  size_t max;
+} thpool_;
+
+threadpool thpool_init(int num_threads) {
+  threadpool pool = (struct thpool_ *)malloc(sizeof(struct thpool_));
+  if (pool == NULL)
+    return NULL;
+
+  pool->indx = 0;
+  pool->max = num_threads;
+  pool->handles = malloc(num_threads*sizeof(HANDLE));
+  
+  for(int i = 0; i < num_threads; i++)
+    pool->handles[i] = NULL;
+  return pool;
+}
+
+int thpool_add_work(threadpool pool, long unsigned int (*func)(void *), void *arg) {
+  if(pool->indx >= pool->max)
+    pool->indx = 0;
+
+  if(NULL != pool->handles[pool->indx]){
+    WaitForSingleObject(pool->handles[pool->indx], INFINITE);
+    CloseHandle(pool->handles[pool->indx]);
+    pool->handles[pool->indx] = NULL;
+  }
+
+  DWORD id;
+  pool->handles[pool->indx] = CreateThread(NULL, 0, func, arg, 0, &id);
+
+  if(INVALID_HANDLE_VALUE == pool->handles[pool->indx])
+    return -1;
+
+  pool->indx++;
+  return 0;
+}
+
+void thpool_wait(threadpool pool) {
+  for(int i = 0; i < pool->max; i++){
+    if(NULL == pool->handles[i])
+      continue;
+
+    WaitForSingleObject(pool->handles[i], INFINITE);
+    CloseHandle(pool->handles[i]);
+    pool->handles[i] = NULL;
+  }
+}
+
+void thpool_destroy(threadpool pool) {
+  for(int i = 0; i < pool->max; i++){
+    if(NULL == pool->handles[i])
+      continue;
+    CloseHandle(pool->handles[i]);
+    pool->handles[i] = NULL;
+  }
+
+  free(pool->handles);
+  free(pool);
+}
+
+#else
+
 /*
  *
  * NOT PART OF THE LOKPACK PROJECT !!!
@@ -132,6 +203,10 @@ int thpool_add_work(thpool_ *thpool_p, void (*function_p)(void *), void *arg_p) 
 }
 
 void thpool_wait(thpool_ *thpool_p) {
+  while (thpool_p->jobqueue.len || thpool_p->num_threads_working) {
+    printf("%d %d\n", thpool_p->jobqueue.len, thpool_p->num_threads_working);
+    sleep(1);
+  }
   pthread_mutex_lock(&thpool_p->thcount_lock);
   while (thpool_p->jobqueue.len || thpool_p->num_threads_working) {
     pthread_cond_wait(&thpool_p->threads_all_idle, &thpool_p->thcount_lock);
@@ -170,14 +245,12 @@ void thpool_destroy(thpool_ *thpool_p) {
   free(thpool_p);
 }
 
-#ifndef _WIN64
 void thpool_pause(thpool_ *thpool_p) {
   int n;
   for (n = 0; n < thpool_p->num_threads_alive; n++) {
     pthread_kill(thpool_p->threads[n]->pthread, SIGUSR1);
   }
 }
-#endif
 
 void thpool_resume(thpool_ *thpool_p) {
   (void)thpool_p;
@@ -214,13 +287,11 @@ static void *thread_do(struct thread *thread_p) {
   pthread_setname_np(thread_p->pthread, thread_name);
   thpool_ *thpool_p = thread_p->thpool_p;
 
-#ifndef _WIN64
   struct sigaction act;
   sigemptyset(&act.sa_mask);
   act.sa_flags   = SA_ONSTACK;
   act.sa_handler = thread_hold;
   sigaction(SIGUSR1, &act, NULL);
-#endif
 
   pthread_mutex_lock(&thpool_p->thcount_lock);
   thpool_p->num_threads_alive += 1;
@@ -367,3 +438,5 @@ static void bsem_wait(bsem *bsem_p) {
   bsem_p->v = 0;
   pthread_mutex_unlock(&bsem_p->mutex);
 }
+
+#endif
