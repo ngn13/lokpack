@@ -1,13 +1,13 @@
 #ifdef _WIN64
 
-#include <windows.h>
-#include <stdio.h>
 #include "pool.h"
+#include <stdio.h>
+#include <windows.h>
 
 typedef struct thpool_ {
   HANDLE *handles;
-  size_t indx;
-  size_t max;
+  size_t  indx;
+  size_t  max;
 } thpool_;
 
 threadpool thpool_init(int num_threads) {
@@ -15,20 +15,20 @@ threadpool thpool_init(int num_threads) {
   if (pool == NULL)
     return NULL;
 
-  pool->indx = 0;
-  pool->max = num_threads;
-  pool->handles = malloc(num_threads*sizeof(HANDLE));
-  
-  for(int i = 0; i < num_threads; i++)
+  pool->indx    = 0;
+  pool->max     = num_threads;
+  pool->handles = malloc(num_threads * sizeof(HANDLE));
+
+  for (int i = 0; i < num_threads; i++)
     pool->handles[i] = NULL;
   return pool;
 }
 
 int thpool_add_work(threadpool pool, long unsigned int (*func)(void *), void *arg) {
-  if(pool->indx >= pool->max)
+  if (pool->indx >= pool->max)
     pool->indx = 0;
 
-  if(NULL != pool->handles[pool->indx]){
+  if (NULL != pool->handles[pool->indx]) {
     WaitForSingleObject(pool->handles[pool->indx], INFINITE);
     CloseHandle(pool->handles[pool->indx]);
     pool->handles[pool->indx] = NULL;
@@ -37,7 +37,7 @@ int thpool_add_work(threadpool pool, long unsigned int (*func)(void *), void *ar
   DWORD id;
   pool->handles[pool->indx] = CreateThread(NULL, 0, func, arg, 0, &id);
 
-  if(INVALID_HANDLE_VALUE == pool->handles[pool->indx])
+  if (INVALID_HANDLE_VALUE == pool->handles[pool->indx])
     return -1;
 
   pool->indx++;
@@ -45,8 +45,8 @@ int thpool_add_work(threadpool pool, long unsigned int (*func)(void *), void *ar
 }
 
 void thpool_wait(threadpool pool) {
-  for(int i = 0; i < pool->max; i++){
-    if(NULL == pool->handles[i])
+  for (int i = 0; i < pool->max; i++) {
+    if (NULL == pool->handles[i])
       continue;
 
     WaitForSingleObject(pool->handles[i], INFINITE);
@@ -56,8 +56,8 @@ void thpool_wait(threadpool pool) {
 }
 
 void thpool_destroy(threadpool pool) {
-  for(int i = 0; i < pool->max; i++){
-    if(NULL == pool->handles[i])
+  for (int i = 0; i < pool->max; i++) {
+    if (NULL == pool->handles[i])
       continue;
     CloseHandle(pool->handles[i]);
     pool->handles[i] = NULL;
@@ -203,10 +203,6 @@ int thpool_add_work(thpool_ *thpool_p, void (*function_p)(void *), void *arg_p) 
 }
 
 void thpool_wait(thpool_ *thpool_p) {
-  while (thpool_p->jobqueue.len || thpool_p->num_threads_working) {
-    printf("%d %d\n", thpool_p->jobqueue.len, thpool_p->num_threads_working);
-    sleep(1);
-  }
   pthread_mutex_lock(&thpool_p->thcount_lock);
   while (thpool_p->jobqueue.len || thpool_p->num_threads_working) {
     pthread_cond_wait(&thpool_p->threads_all_idle, &thpool_p->thcount_lock);

@@ -6,11 +6,11 @@
 #include <unistd.h>
 
 #ifdef _WIN64
-  #include <windows.h>
+#include <windows.h>
 #endif
 
-#include "../lib/pool.h"
 #include "../lib/log.h"
+#include "../lib/pool.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
 
@@ -25,7 +25,7 @@ long unsigned int upload_file(void *arg) {
 void upload_file(void *arg) {
 #endif
   char *file = (char *)arg;
-  
+
   char userpwd[strlen(FTP_USER) + strlen(FTP_PWD) + 2];
   sprintf(userpwd, "%s:%s", FTP_USER, FTP_PWD);
 
@@ -33,7 +33,7 @@ void upload_file(void *arg) {
   join(url, FTP_URL, file);
   replace(url, ' ', '_');
 
-  FILE *fp   = fopen(file, "r");
+  FILE *fp = fopen(file, "r");
   if (NULL == fp) {
     debug("(%s) Failed to open file", file);
     goto UPLOAD_FREE;
@@ -44,7 +44,7 @@ void upload_file(void *arg) {
     debug("(%s) Failed to init curl", file);
     goto UPLOAD_FREE;
   }
-  
+
   debug("Uploading to FTP(S): %s", url);
   curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
   curl_easy_setopt(curl, CURLOPT_USERPWD, userpwd);
@@ -59,7 +59,7 @@ void upload_file(void *arg) {
   curl_easy_cleanup(curl);
 
 UPLOAD_FREE:
-  if(NULL != fp)
+  if (NULL != fp)
     fclose(fp);
 
   free(file);

@@ -14,19 +14,19 @@ typedef struct thpool_ *threadpool;
 
 #ifndef _WIN64
 
-threadpool              thpool_init(int);
-int                     thpool_add_work(threadpool, void (*function_p)(void *), void *);
-void                    thpool_wait(threadpool);
-void thpool_pause(threadpool);
-void thpool_resume(threadpool);
-void thpool_destroy(threadpool);
-int  thpool_num_threads_working(threadpool);
+threadpool thpool_init(int);
+int        thpool_add_work(threadpool, void (*function_p)(void *), void *);
+void       thpool_wait(threadpool);
+void       thpool_pause(threadpool);
+void       thpool_resume(threadpool);
+void       thpool_destroy(threadpool);
+int        thpool_num_threads_working(threadpool);
 
 #else
 
-threadpool              thpool_init(int);
-int                     thpool_add_work(threadpool, long unsigned int (*function_p)(void *), void *);
-void                    thpool_wait(threadpool);
-void thpool_destroy(threadpool);
+threadpool thpool_init(int);
+int        thpool_add_work(threadpool, long unsigned int (*function_p)(void *), void *);
+void       thpool_wait(threadpool);
+void       thpool_destroy(threadpool);
 
 #endif
