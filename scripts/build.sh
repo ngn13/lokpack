@@ -11,7 +11,6 @@ source scripts/common.sh
 # vars
 PUB_TEMP="/tmp/lokpack_pub"
 PRIV_TEMP="/tmp/lokpack_priv"
-DEBUG_MODE="false"
 
 # create key pair
 _echo "${BLUE}Generating RSA key pair"
@@ -62,13 +61,14 @@ mkdir -pv dist
 gcc $CFLAGS -o dist/encryptor     \
   -DVERSION=\"${VERSION}\"        \
   -DBUILD_PUB="\"${PUB_KEY}\""    \
+  -DDEBUG=false                   \
   encryptor/*.c lib/*.c $ENC_LIBS
 
 gcc $CFLAGS -o dist/decryptor     \
   -DVERSION=\"${VERSION}\"        \
   -DBUILD_PUB="\"${PUB_KEY}\""    \
   -DBUILD_PRIV="\"${PRIV_KEY}\""  \
-  -DDEBUG_MODE=${DEBUG_MODE}      \
+  -DDEBUG=false                   \
   decryptor/*.c lib/*.c $DEC_LIBS
 
 # strip
