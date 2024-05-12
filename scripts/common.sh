@@ -1,5 +1,7 @@
 #!/bin/bash
 
+VERSION="1.3"
+
 BOLD="\e[1m"
 RESET="\e[0m"
 GREEN="\e[32m"

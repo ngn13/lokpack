@@ -9,7 +9,6 @@ fi
 source scripts/common.sh
 
 # vars
-VERSION="1.2"
 PUB_TEMP="/tmp/lokpack_pub"
 PRIV_TEMP="/tmp/lokpack_priv"
 DEBUG_MODE="false"
@@ -22,6 +21,9 @@ openssl rsa -in "$PRIV_TEMP" -pubout -out "$PUB_TEMP" 2> /dev/null
 
 PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
 PUB_KEY=$(sed -z 's/\n/\\n/g' < $PUB_TEMP)
+
+rm "$PRIV_TEMP"
+rm "$PUB_TEMP"
 
 # flags
 ENC_LIBS="-lpthread -lcrypto -lcurl"
