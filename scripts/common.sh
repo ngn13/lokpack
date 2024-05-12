@@ -10,8 +10,6 @@ _echo() {
   echo -e "${1}${RESET}"
 }
 
-VERSION="1.3"
-
 openssl_url="https://www.openssl.org/source/openssl-3.1.2.tar.gz"
 openssl_hash="1d7861f969505e67b8677e205afd9ff4"
 
@@ -24,8 +22,8 @@ get_file() {
 
 check_hash() {
   if ! echo "$2 $1" | md5sum -c > /dev/null; then
-    echo "${BOLD}${RED}Hash verification for $1 failed!"
+    echo "[-] Hash verification for $1 failed!"
     exit 1
   fi
-  _echo "${GREEN}Hash verification success!"
+  echo "[+] Hash verification success!"
 }

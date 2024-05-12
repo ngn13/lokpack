@@ -9,7 +9,6 @@
 
 extern bool DEBUG;
 
-void log_init();
 void info(const char *, ...);
 void error(const char *, ...);
 void success(const char *, ...);

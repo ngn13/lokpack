@@ -125,7 +125,6 @@ void encrypt_files(char *path, clist_t *exts, threadpool pool) {
 }
 
 int main(int argc, char **argv) {
-  log_init();
   int ret = EXIT_FAILURE;
 
   for (int i = 1; i < argc; i++) {
