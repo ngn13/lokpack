@@ -20,9 +20,9 @@ mv dist/encryptor dist/decryptor "$RELDIR"
 cp scripts/patch.py "$RELDIR"
 
 # archive all
-_echo "${BLUE}Creating the linux-x86_64 archive"
+_echo "${BLUE}Creating the release archive"
 pushd "$RELDIR" > /dev/null
-  tar czf "$RELDIR/lokpack-${VERSION}-x86_64.tar.gz" *
+  tar czf "$RELDIR/lokpack-${VERSION}.tar.gz" *
 popd > /dev/null
 
 mv "$RELDIR/lokpack-"*".tar.gz" .
