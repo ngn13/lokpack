@@ -9,7 +9,7 @@ fi
 source scripts/common.sh
 
 # vars
-VERSION="1.3"
+VERSION="1.2"
 PUB_TEMP="/tmp/lokpack_pub"
 PRIV_TEMP="/tmp/lokpack_priv"
 DEBUG_MODE="false"
