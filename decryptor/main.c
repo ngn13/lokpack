@@ -30,7 +30,7 @@
 #include <unistd.h>
 
 #ifdef _WIN64
-#include <windows.h>
+  #include <windows.h>
 #endif
 
 #include "../lib/log.h"
@@ -42,7 +42,7 @@ char *EXT = NULL;
 
 #ifdef _WIN64
 long unsigned int decrypt_file(void *arg) {
-#else
+#elif
 void decrypt_file(void *arg) {
 #endif
   EVP_PKEY_CTX *ctx = NULL;
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
   }
 
   threadpool pool = thpool_init(20);
-  if (NULL == pool) {
+  if(NULL == pool){
     error("Failed to create the threadpool");
     goto DONE;
   }
