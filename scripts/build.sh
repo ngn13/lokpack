@@ -16,7 +16,7 @@ DEBUG_MODE="false"
 # create key pair
 _echo "${BLUE}Generating RSA key pair"
 rm -f "$PUB_TEMP" "$PRIV_TEMP"
-openssl genpkey -algorithm RSA -out "$PRIV_TEMP" -pkeyopt rsa_keygen_bits:2048 2> /dev/null
+openssl genpkey -algorithm RSA -out "$PRIV_TEMP" -pkeyopt rsa_keygen_bits:4096 2> /dev/null
 openssl rsa -in "$PRIV_TEMP" -pubout -out "$PUB_TEMP" 2> /dev/null
 
 PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
@@ -31,11 +31,6 @@ DEC_LIBS="-lpthread -lcrypto"
 
 if [[ -z "$CC" ]]; then
   CC=gcc
-fi
-
-if [[ $CC == *"mingw"* ]]; then
-  ENC_LIBS="-lcrypto -lcurl"
-  DEC_LIBS="-lcrypto"
 fi
 
 if [[ "$1" == "-debug" ]]; then
@@ -68,7 +63,6 @@ fi
 # build
 mkdir -pv dist
 
-cat << EOF
 $CC $CFLAGS -o dist/encryptor     \
   -DVERSION=\"${VERSION}\"        \
   -DBUILD_PUB="\"${PUB_KEY}\""    \
@@ -80,7 +74,6 @@ $CC $CFLAGS -o dist/decryptor     \
   -DBUILD_PRIV="\"${PRIV_KEY}\""  \
   -DDEBUG_MODE=${DEBUG_MODE}      \
   decryptor/*.c lib/*.c $DEC_LIBS
-EOF
 
 # strip
 if [[ "$1" != "debug" ]]; then

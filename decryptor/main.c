@@ -30,7 +30,7 @@
 #include <unistd.h>
 
 #ifdef _WIN64
-  #include <windows.h>
+#include <windows.h>
 #endif
 
 #include "../lib/log.h"
@@ -40,11 +40,7 @@
 
 char *EXT = NULL;
 
-#ifdef _WIN64
-long unsigned int decrypt_file(void *arg) {
-#elif
 void decrypt_file(void *arg) {
-#endif
   EVP_PKEY_CTX *ctx = NULL;
 
   unsigned char in_buf[OUTPUT_SIZE];
@@ -53,7 +49,7 @@ void decrypt_file(void *arg) {
   size_t in_len  = 0;
   size_t out_len = 0;
 
-  bool ok = false;
+  bool success = false;
 
   char *in_file = arg;
   int   name_sz = strlen(in_file) - (strlen(EXT) + 1);
@@ -118,7 +114,7 @@ void decrypt_file(void *arg) {
     goto FREE;
   }
 
-  ok = true;
+  success = true;
 
 FREE:
   if (NULL != ctx)
@@ -130,7 +126,7 @@ FREE:
   if (NULL != out)
     fclose(out);
 
-  if (!ok) {
+  if (!success) {
     error("Failed to decrypt file: %s", in_file);
 #ifdef _WIN64
     SetFileAttributes(out_file, GetFileAttributes(out_file) & ~FILE_ATTRIBUTE_READONLY);
@@ -139,10 +135,6 @@ FREE:
   }
 
   free(in_file);
-
-#ifdef _WIN64
-  return 0;
-#endif
 }
 
 void decrypt_files(char *path, threadpool pool) {
@@ -225,11 +217,6 @@ int main(int argc, char *argv[]) {
   }
 
   threadpool pool = thpool_init(20);
-  if(NULL == pool){
-    error("Failed to create the threadpool");
-    goto DONE;
-  }
-
   if (argc >= 2)
     decrypt_files(argv[1], pool);
   else

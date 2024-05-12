@@ -8,7 +8,7 @@ tool targeting x86_64 Linux systems, written in C.
 - Build static encryption and decrypiton tools
 - Steal files using a FTP(S) server
 - Specify custom target paths
-- Uncrackable RSA asymmetric encryption
+- Uncrackable RSA-4096 asymmetric encryption
 - Multi-threaded (a.k.a. fast)
 
 ## Build
