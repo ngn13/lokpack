@@ -40,11 +40,7 @@
 
 char *EXT = NULL;
 
-#ifdef _WIN64
-long unsigned int decrypt_file(void *arg) {
-#else
 void decrypt_file(void *arg) {
-#endif
   EVP_PKEY_CTX *ctx = NULL;
 
   unsigned char in_buf[OUTPUT_SIZE];
@@ -63,8 +59,14 @@ void decrypt_file(void *arg) {
     out_file[i] = in_file[i];
   out_file[name_sz] = '\0';
 
-  FILE *in  = fopen(in_file, "r");
-  FILE *out = fopen(out_file, "a");
+#ifdef _WIN64
+  DWORD attr = GetFileAttributes(in_file);
+  if (attr & FILE_ATTRIBUTE_READONLY)
+    SetFileAttributes(in_file, attr & ~FILE_ATTRIBUTE_READONLY);
+#endif
+
+  FILE *in  = fopen(in_file, "r+b");
+  FILE *out = fopen(out_file, "ab");
 
   if (NULL == in || NULL == out) {
     debug("(%s) Failed to open in/out", in_file);
@@ -105,7 +107,7 @@ void decrypt_file(void *arg) {
     goto FREE;
   }
 
-  SetFileAttributes(in_file, GetFileAttributes(in_file) & ~FILE_ATTRIBUTE_READONLY);
+  SetFileAttributes(out_file, attr);
 #else
   if (!copy_stat(fileno(in), fileno(out))) {
     debug("(%s) Failed to copy perms", in_file);
@@ -132,17 +134,10 @@ FREE:
 
   if (!ok) {
     error("Failed to decrypt file: %s", in_file);
-#ifdef _WIN64
-    SetFileAttributes(out_file, GetFileAttributes(out_file) & ~FILE_ATTRIBUTE_READONLY);
-#endif
     unlink(out_file);
   }
 
   free(in_file);
-
-#ifdef _WIN64
-  return 0;
-#endif
 }
 
 void decrypt_files(char *path, threadpool pool) {
@@ -191,7 +186,11 @@ void decrypt_files(char *path, threadpool pool) {
 
     if (has_valid_ext(fp, EXT)) {
       debug("Decrypting file: %s...", fp);
+#if defined(_WIN64) && !defined(USE_WIN_THREADS)
+      decrypt_file(strdup(fp));
+#else
       thpool_add_work(pool, decrypt_file, strdup(fp));
+#endif
     }
   }
 
@@ -224,19 +223,30 @@ int main(int argc, char *argv[]) {
     goto DONE;
   }
 
+#if defined(_WIN64) && !defined(USE_WIN_THREADS)
+  threadpool pool = NULL;
+#else
   threadpool pool = thpool_init(20);
   if (NULL == pool) {
     error("Failed to create the threadpool");
     goto DONE;
   }
+#endif
 
   if (argc >= 2)
     decrypt_files(argv[1], pool);
   else
     decrypt_files("/", pool);
+
+#if !defined(_WIN64) || defined(USE_WIN_THREADS)
   thpool_wait(pool);
+#endif
+  success("Completed, cleaning up");
 
 DONE:
+#if !defined(_WIN64) || defined(USE_WIN_THREADS)
   thpool_destroy(pool);
+#endif
+
   rsa_free();
 }

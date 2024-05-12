@@ -1,69 +1,119 @@
 #ifdef _WIN64
 
 #include "pool.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <windows.h>
 
+typedef struct work {
+  void (*func)(void *);
+  void        *args;
+  struct work *next;
+} work_t;
+
 typedef struct thpool_ {
-  HANDLE *handles;
-  size_t  indx;
-  size_t  max;
+  bool               running;
+  size_t             thread_num;
+  HANDLE            *threads;
+  work_t            *head;
+  work_t            *tail;
+  CRITICAL_SECTION   qmutex;
+  CONDITION_VARIABLE qcond;
 } thpool_;
 
-threadpool thpool_init(int num_threads) {
-  threadpool pool = (struct thpool_ *)malloc(sizeof(struct thpool_));
-  if (pool == NULL)
-    return NULL;
+static DWORD WINAPI thread_worker(LPVOID args) {
+  threadpool pool = args;
 
-  pool->indx    = 0;
-  pool->max     = num_threads;
-  pool->handles = malloc(num_threads * sizeof(HANDLE));
+  while (true) {
+    EnterCriticalSection(&(pool->qmutex));
 
-  for (int i = 0; i < num_threads; i++)
-    pool->handles[i] = NULL;
-  return pool;
-}
+    while (NULL == pool->head && pool->running) {
+      if (!SleepConditionVariableCS(&(pool->qcond), &(pool->qmutex), INFINITE))
+        LeaveCriticalSection(&(pool->qmutex));
+    }
 
-int thpool_add_work(threadpool pool, long unsigned int (*func)(void *), void *arg) {
-  if (pool->indx >= pool->max)
-    pool->indx = 0;
+    if (NULL == pool->head && !pool->running) {
+      LeaveCriticalSection(&(pool->qmutex));
+      return 0;
+    }
 
-  if (NULL != pool->handles[pool->indx]) {
-    WaitForSingleObject(pool->handles[pool->indx], INFINITE);
-    CloseHandle(pool->handles[pool->indx]);
-    pool->handles[pool->indx] = NULL;
+    work_t *head = pool->head;
+    pool->head   = pool->head->next;
+
+    LeaveCriticalSection(&(pool->qmutex));
+    head->func(head->args);
+
+    free(head->args);
+    free(head);
   }
 
-  DWORD id;
-  pool->handles[pool->indx] = CreateThread(NULL, 0, func, arg, 0, &id);
-
-  if (INVALID_HANDLE_VALUE == pool->handles[pool->indx])
-    return -1;
-
-  pool->indx++;
   return 0;
 }
 
-void thpool_wait(threadpool pool) {
-  for (int i = 0; i < pool->max; i++) {
-    if (NULL == pool->handles[i])
-      continue;
+threadpool thpool_init(int num_threads) {
+  threadpool pool = malloc(sizeof(threadpool));
+  if (NULL == pool)
+    return NULL;
 
-    WaitForSingleObject(pool->handles[i], INFINITE);
-    CloseHandle(pool->handles[i]);
-    pool->handles[i] = NULL;
+  pool->running    = true;
+  pool->thread_num = num_threads;
+  pool->threads    = malloc(num_threads * sizeof(HANDLE));
+  pool->head       = NULL;
+  pool->tail       = NULL;
+
+  InitializeConditionVariable(&(pool->qcond));
+  InitializeCriticalSection(&(pool->qmutex));
+
+  for (int i = 0; i < num_threads; ++i) {
+    HANDLE t = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread_worker, pool, 0, NULL);
+
+    if (t == NULL)
+      return NULL;
+    pool->threads[i] = t;
   }
+
+  return pool;
+}
+
+int thpool_add_work(threadpool pool, void (*func)(void *), void *arg) {
+  work_t *work = malloc(sizeof(work_t));
+
+  work->next = NULL;
+  work->func = func;
+  work->args = arg;
+
+  EnterCriticalSection(&(pool->qmutex));
+  if (pool->head == NULL)
+    pool->head = pool->tail = work;
+  else {
+    pool->tail->next = work;
+    pool->tail       = pool->tail->next;
+  }
+
+  LeaveCriticalSection(&(pool->qmutex));
+  WakeConditionVariable(&(pool->qcond));
+}
+
+void thpool_wait(threadpool pool) {
+  if (pool == NULL || !pool->running)
+    return;
+
+  EnterCriticalSection(&(pool->qmutex));
+  pool->running = false;
+  LeaveCriticalSection(&(pool->qmutex));
+
+  WakeAllConditionVariable(&(pool->qcond));
+  WaitForMultipleObjects(pool->thread_num, pool->threads, 1, INFINITE);
 }
 
 void thpool_destroy(threadpool pool) {
-  for (int i = 0; i < pool->max; i++) {
-    if (NULL == pool->handles[i])
-      continue;
-    CloseHandle(pool->handles[i]);
-    pool->handles[i] = NULL;
+  work_t *prev = NULL;
+  while (pool->head != NULL) {
+    prev = pool->head->next;
+    free(pool->head);
+    pool->head = prev;
   }
 
-  free(pool->handles);
   free(pool);
 }
 
