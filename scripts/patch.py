@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from Crypto.PublicKey import RSA
-from hashlib import sha1
+from hashlib import md5 
 from os import path
 import re
 
@@ -22,11 +22,11 @@ class Patcher:
     self.gen_rsa()
 
   def gen_rsa(self) -> None:
-    info("Generating a 4096 bit RSA key")
-    rsa_key = RSA.generate(4096)
+    info("Generating a 8192 bit RSA key (may take a second)")
+    rsa_key = RSA.generate(8192)
     self.pub_key  = rsa_key.public_key().export_key()
     self.priv_key = rsa_key.export_key()
-    success(f"Private key SHA1: {sha1(self.priv_key).hexdigest()}")
+    success(f"Public key MD5: {md5(self.pub_key).hexdigest()}")
 
   def patch_all(self) -> None:
     found = False

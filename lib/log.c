@@ -2,8 +2,8 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
-
-bool DEBUG = false;
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 void info(const char *msg, ...) {
   va_list args;

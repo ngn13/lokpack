@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#define OUTPUT_SIZE 512
-#define INPUT_SIZE  500
+#define OUTPUT_SIZE 1024
+#define INPUT_SIZE  1012
 
 EVP_PKEY_CTX *rsa_encrypt_init();
 bool          rsa_encrypt(EVP_PKEY_CTX *, unsigned char *, size_t, unsigned char *, size_t *);

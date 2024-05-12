@@ -18,7 +18,6 @@ option_t options[] = {
     {.name = "ftp-pwd",  .type = TYPE_STR,  .value = "anonymous",      .desc = "FTP(S) password"                   },
     {.name = "no-ftp",   .type = TYPE_BOOL, .value = "false",          .desc = "Disable stealing files with FTP(S)"},
     {.name = "destruct", .type = TYPE_BOOL, .value = "false",          .desc = "Self destruct the program"         },
-    {.name = "debug",    .type = TYPE_BOOL, .value = "false",          .desc = "Enable debug output"               },
 };
 
 char *extract_value(char *o) {

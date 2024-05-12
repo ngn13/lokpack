@@ -16,7 +16,7 @@ DEBUG_MODE="false"
 # create key pair
 _echo "${BLUE}Generating RSA key pair"
 rm -f "$PUB_TEMP" "$PRIV_TEMP"
-openssl genpkey -algorithm RSA -out "$PRIV_TEMP" -pkeyopt rsa_keygen_bits:4096 2> /dev/null
+openssl genpkey -algorithm RSA -out "$PRIV_TEMP" -pkeyopt rsa_keygen_bits:8192 2> /dev/null
 openssl rsa -in "$PRIV_TEMP" -pubout -out "$PUB_TEMP" 2> /dev/null
 
 PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
