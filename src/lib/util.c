@@ -108,7 +108,7 @@ char *lp_sha256(char *str, char *hash) {
     return NULL;
   }
 
-  if (!EVP_DigestInit_ex(ctx, alg, NULL)) {
+  if (!EVP_DigestInit(ctx, alg)) {
     lp_debug("Failed to initialize the hash digest");
     lp_openssl_error();
     EVP_MD_CTX_free(ctx);

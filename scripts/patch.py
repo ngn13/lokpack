@@ -21,27 +21,38 @@ def fail(text: str) -> None:
 class Patcher:
     def __init__(self):
         self.binaries = ["encryptor", "decryptor"]
-        self.pub_regex = b"-----BEGIN PUBLIC KEY-----(\\n|\\r|\\r\\n)([0-9a-zA-Z\\+\\/=]{64}(\\n|\\r|\\r\\n))*([0-9a-zA-Z\\+\\/=]{1,63}(\\n|\\r|\\r\\n))?-----END PUBLIC KEY-----"
-        self.priv_regex = b"-----BEGIN RSA PRIVATE KEY-----(\\n|\\r|\\r\\n)([0-9a-zA-Z\\+\\/=]{64}(\\n|\\r|\\r\\n))*([0-9a-zA-Z\\+\\/=]{1,63}(\\n|\\r|\\r\\n))?-----END RSA PRIVATE KEY-----"
+        self.pub_regex = (
+            b"-----BEGIN PUBLIC KEY-----"
+            + b"([0-9A-Za-z]|\\n|\\r|\\/|=|\\+)*"
+            + b"-----END PUBLIC KEY-----\\n"
+        )
+        self.priv_regex = (
+            b"-----BEGIN RSA PRIVATE KEY-----"
+            + b"([0-9A-Za-z]|\\n|\\r|\\/|=|\\+)*"
+            + b"-----END RSA PRIVATE KEY-----\\n"
+        )
         self.gen_rsa()
 
     def gen_rsa(self) -> None:
         info("Generating an 8192 bit RSA key (may take a second)")
         rsa_key = RSA.generate(8192)
-        self.pub_key = rsa_key.public_key().export_key()
-        self.priv_key = rsa_key.export_key()
+        self.pub_key = rsa_key.public_key().export_key() + b"\n"
+        self.priv_key = rsa_key.export_key() + b"\n"
         success(f"Public key SHA256: {sha256(self.pub_key).hexdigest()}")
 
     def patch_all(self) -> None:
         found = False
+
         for b in self.binaries:
             if not path.exists(b) or not path.isfile(b):
                 continue
 
             found = True
+
             if not self.patch_binary(b):
                 fail(f"Failed to patch binary: {b}")
                 continue
+
             success(f"Patched binary: {b}")
 
         if not found:
@@ -52,17 +63,22 @@ class Patcher:
             b = open(fp, "rb")
             binary = b.read()
             b.close()
-        except:
+        except Exception:
             return False
+
+        length = len(binary)
 
         binary = re.sub(self.pub_regex, self.pub_key, binary)
         binary = re.sub(self.priv_regex, self.priv_key, binary)
+
+        if length != len(binary):
+            return False
 
         try:
             b = open(fp, "wb")
             b.write(binary)
             b.close()
-        except:
+        except Exception:
             return False
 
         return True
