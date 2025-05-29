@@ -48,11 +48,15 @@ EVP_PKEY *pub_key = NULL;
 char      pub_hash[LP_SHA256_SIZE];
 char      pub_ext[7] = {0};
 
-void quit(int code) {
+int quit(int code) {
+  /* free resources */
   lp_traverser_free(&trav);
   lp_rsa_key_free(pub_key);
   free(ftp_creds);
+
+  /* exit (never returns) */
   exit(code);
+  return code;
 }
 
 void signal_handler(int signal) {
@@ -249,7 +253,7 @@ int main(int argc, char **argv) {
   int    threads;
 
   /* temporary stuff */
-  int i, len, ret = EXIT_FAILURE;
+  int i, len;
 
   /* initialize the traverser */
   lp_traverser_init(&trav);
@@ -386,5 +390,5 @@ int main(int argc, char **argv) {
   }
 
   lp_success("Operation completed");
-  quit(EXIT_SUCCESS);
+  return quit(EXIT_SUCCESS);
 }

@@ -43,10 +43,14 @@ lp_traverser_t trav;
 EVP_PKEY *priv_key   = NULL;
 char      pub_ext[7] = {0};
 
-void quit(int code) {
+int quit(int code) {
+  /* free resources */
   lp_traverser_free(&trav);
   lp_rsa_key_free(priv_key);
+
+  /* exit (should never return) */
   exit(code);
+  return code;
 }
 
 void signal_handler(int signal) {
@@ -177,7 +181,7 @@ int main(int argc, char *argv[]) {
   struct sigaction action;
 
   char hash[LP_SHA256_SIZE], *exts[2];
-  int  i, ret = EXIT_FAILURE;
+  int  i;
 
   if (argc <= 1) {
     lp_info("Usage: %s [DIR/FILE]...", argv[0]);
@@ -238,5 +242,5 @@ int main(int argc, char *argv[]) {
   }
 
   lp_success("Operation completed");
-  quit(EXIT_SUCCESS);
+  return quit(EXIT_SUCCESS);
 }
