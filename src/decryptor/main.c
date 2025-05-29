@@ -32,13 +32,27 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 
 #include <fcntl.h>
 #include <stdio.h>
 
 /* shared handler data */
+lp_traverser_t trav;
+
 EVP_PKEY *priv_key   = NULL;
 char      pub_ext[7] = {0};
+
+void free_resources(void) {
+  lp_traverser_free(&trav);
+  lp_rsa_key_free(priv_key);
+}
+
+void signal_handler(int signal) {
+  (void)signal;
+  lp_info("Stopping the program, wait for ongoing operations");
+  free_resources();
+}
 
 void decrypt_handler(char *path) {
   bool        ret = false;
@@ -157,8 +171,8 @@ free:
 }
 
 int main(int argc, char *argv[]) {
-  /* dir traverser */
-  lp_traverser_t trav;
+  /* signal action */
+  struct sigaction action;
 
   char hash[LP_SHA256_SIZE], *exts[2];
   int  i, ret = EXIT_FAILURE;
@@ -170,6 +184,15 @@ int main(int argc, char *argv[]) {
 
   /* initialize the traverser */
   lp_traverser_init(&trav);
+
+  /* setup the signal handler */
+  sigemptyset(&action.sa_mask);
+  action.sa_handler = signal_handler;
+  action.sa_flags   = 0;
+
+  sigaction(SIGINT, &action, NULL);
+  sigaction(SIGTERM, &action, NULL);
+  sigaction(SIGQUIT, &action, NULL);
 
   /* load the private RSA key */
   if (NULL == (priv_key = lp_rsa_key_load())) {
@@ -216,7 +239,6 @@ int main(int argc, char *argv[]) {
   ret = EXIT_SUCCESS;
 
 end:
-  lp_traverser_free(&trav);
-  lp_rsa_key_free(priv_key);
+  free_resources();
   return ret;
 }

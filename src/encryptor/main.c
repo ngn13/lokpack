@@ -32,17 +32,38 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <fcntl.h>
 #include <stdio.h>
 
 /* shared handler data */
+lp_traverser_t trav;
+bool           confirm = false;
+
 char *ftp_creds = NULL;
 char *ftp_url   = NULL;
 
 EVP_PKEY *pub_key = NULL;
 char      pub_hash[LP_SHA256_SIZE];
 char      pub_ext[7] = {0};
+
+void free_resources(void) {
+  lp_traverser_free(&trav);
+  lp_rsa_key_free(pub_key);
+  free(ftp_creds);
+}
+
+void signal_handler(int signal) {
+  if (SIGINT == signal && confirm) {
+    lp_info("If you really want to quit, do that again");
+    confirm = false;
+    return;
+  }
+
+  lp_info("Stopping the program, wait for ongoing operations");
+  free_resources();
+}
 
 void upload_handler(char *path) {
   char    *url     = NULL;
@@ -218,9 +239,8 @@ free:
 }
 
 int main(int argc, char **argv) {
-
-  /* dir traverser */
-  lp_traverser_t trav;
+  /* signal action */
+  struct sigaction action;
 
   /* options */
   char  *ftp_usr = NULL, *ftp_pwd = NULL, **cur = NULL;
@@ -233,6 +253,16 @@ int main(int argc, char **argv) {
   /* initialize the traverser */
   lp_traverser_init(&trav);
 
+  /* setup the signal handler */
+  sigemptyset(&action.sa_mask);
+  action.sa_handler = signal_handler;
+  action.sa_flags   = 0;
+
+  sigaction(SIGINT, &action, NULL);
+  sigaction(SIGTERM, &action, NULL);
+  sigaction(SIGQUIT, &action, NULL);
+
+  /* parse all the arguments as options */
   for (i = 1; i < argc; i++) {
     /* check for the help option */
     if (lp_streq(argv[i], "-h") || lp_streq(argv[i], "--help")) {
@@ -240,7 +270,6 @@ int main(int argc, char **argv) {
       return EXIT_SUCCESS;
     }
 
-    /* parse the argument as an option */
     if (!opt_parse(argv[i]))
       goto end;
   }
@@ -313,6 +342,9 @@ int main(int argc, char **argv) {
     goto end;
   }
 
+  /* quitting with SIGINT after this point will require confirmation */
+  confirm = true;
+
   /*
 
    * use traverser to travese all the target paths and upload all the files we
@@ -356,8 +388,6 @@ int main(int argc, char **argv) {
   ret = EXIT_SUCCESS;
 
 end:
-  lp_traverser_free(&trav);
-  lp_rsa_key_free(pub_key);
-  free(ftp_creds);
+  free_resources();
   return ret;
 }
