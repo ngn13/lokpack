@@ -127,16 +127,15 @@ void encrypt_handler(char *path) {
   bool        ret = false;
   lp_rsa_t    rsa;
   struct stat st;
+  uint8_t     buf[LP_RSA_BLOCK_SIZE];
 
   /* input file */
-  int     in = -1, in_len = 0, in_file_len = strlen(path);
-  uint8_t in_buf[LP_RSA_BLOCK_SIZE];
-  char   *in_file = path;
+  int   in = -1, in_len = 0, in_file_len = strlen(path);
+  char *in_file = path;
 
   /* output file */
-  int     out = -1, out_len = 0, out_file_len = in_file_len + sizeof(pub_ext);
-  uint8_t out_buf[LP_RSA_BLOCK_SIZE];
-  char   *out_file = calloc(1, out_file_len + 1);
+  int   out = -1, out_len = 0, out_file_len = in_file_len + sizeof(pub_ext);
+  char *out_file = calloc(1, out_file_len + 1);
 
   /* initialize the RSA structure with the public key */
   lp_rsa_init(&rsa, pub_key);
@@ -178,31 +177,31 @@ void encrypt_handler(char *path) {
   }
 
   /* read from the input file, one block at a time */
-  while ((in_len = read(in, in_buf, sizeof(in_buf))) > 0) {
+  while ((in_len = read(in, buf, sizeof(buf))) > 0) {
     /* encrypt the read full/partial block */
-    if (!lp_rsa_encrypt(&rsa, in_buf, in_len, out_buf, &out_len)) {
+    if (!lp_rsa_encrypt(&rsa, buf, in_len, &out_len)) {
       lp_debug("Failed to encrypt %s (%lu, %lu)", in_file, in_len, out_len);
       goto free;
     }
 
     /* write the encrypted full block to the output file */
-    if (out_len != 0 && write(out, out_buf, out_len) <= 0) {
+    if (out_len != 0 && write(out, buf, out_len) <= 0) {
       lp_debug("Failed to write output to %s: %s", out_file, lp_str_error());
       goto free;
     }
 
     /* check we read the last block */
-    if (in_len < (int)sizeof(in_buf))
+    if (in_len < (int)sizeof(buf))
       break;
   }
 
   /* encrypt and write any leftover partial block */
-  if (!lp_rsa_done(&rsa, out_buf, &out_len)) {
+  if (!lp_rsa_done(&rsa, buf, &out_len)) {
     lp_debug("Failed to encrypt the last block");
     goto free;
   }
 
-  if (write(out, out_buf, out_len) < 0) {
+  if (write(out, buf, out_len) < 0) {
     lp_debug("Failed to write last block to %s: %s", out_file, lp_str_error());
     goto free;
   }
