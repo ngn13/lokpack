@@ -9,69 +9,70 @@ fi
 source scripts/common.sh
 
 # vars
-PUB_TEMP="/tmp/lokpack_pub"
-PRIV_TEMP="/tmp/lokpack_priv"
+privfile="/tmp/lokpack_priv"
+pubfile="/tmp/lokpack_pub"
 
-# create key pair
-_echo "${BLUE}Generating RSA key pair"
-rm -f "$PUB_TEMP" "$PRIV_TEMP"
-openssl genpkey -algorithm RSA -out "$PRIV_TEMP" -pkeyopt rsa_keygen_bits:8192 2> /dev/null
-openssl rsa -in "$PRIV_TEMP" -pubout -out "$PUB_TEMP" 2> /dev/null
-
-PRIV_KEY=$(sed -z 's/\n/\\n/g' < $PRIV_TEMP)
-PUB_KEY=$(sed -z 's/\n/\\n/g' < $PUB_TEMP)
-
-rm "$PRIV_TEMP"
-rm "$PUB_TEMP"
+if [ -z "${1}" ]; then
+  fail "please specify a build mode"
+  exit 1
+fi
 
 # flags
-ENC_LIBS="-lpthread -lcrypto -lcurl"
-DEC_LIBS="-lpthread -lcrypto"
+case "${1}" in
+  "-debug")
+    print "${BOLD}=========================================================="
+    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**DEBUG**${RESET}${BLUE} MODE"
+    print "${BOLD}=========================================================="
+    print "${RED}=> You won't be able to run the binaries on other machines"
+    print "${RED}=> All debugging symbols will be kept"
+    print "${RED}=> All optimizations are disabled"
+    flags=""
+    debug=1
+    ;;
 
-if [[ "$1" == "-debug" ]]; then
-  _echo "${BOLD}=========================================================="
-  _echo "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**DEBUG**${RESET}${BLUE} MODE"
-  _echo "${BOLD}=========================================================="
-  _echo "${RED}=> You won't be able to run the binaries on other machines"
-  _echo "${RED}=> All debugging symbols will be kept"
-  _echo "${RED}=> All optimizations are disabled"
-  CFLAGS=""
-  DEBUG_MODE="true"
-elif [[ "$1" == "-static" ]]; then
-  _echo "${BOLD}========================================================="
-  _echo "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**STATIC**${RESET}${BLUE} MODE"
-  _echo "${BOLD}========================================================="
-  _echo "${GREEN}=> You will be able to run the binaries on other machines"
-  _echo "${GREEN}=> All debugging symbols will be stripped"
-  _echo "${GREEN}=> All optimizations are enabled"
-  CFLAGS="-O3 -s -static -L./static/usr/lib"
-else
-  _echo "${BOLD}=========================================================="
-  _echo "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**LOCAL**${RESET}${BLUE} MODE"
-  _echo "${BOLD}=========================================================="
-  _echo "${RED}=> You won't be able to run the binaries on other machines"
-  _echo "${GREEN}=> All debugging symbols will be stripped"
-  _echo "${GREEN}=> All optimizations are enabled"
-  CFLAGS="-O3"
-fi
+  "-static")
+    print "${BOLD}========================================================="
+    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**STATIC**${RESET}${BLUE} MODE"
+    print "${BOLD}========================================================="
+    print "${GREEN}=> You will be able to run the binaries on other machines"
+    print "${GREEN}=> All debugging symbols will be stripped"
+    print "${GREEN}=> All optimizations are enabled"
+    flags="-O3 -s -static -L./static/usr/lib"
+    debug=0
+    ;;
+
+  "-local")
+    print "${BOLD}=========================================================="
+    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**LOCAL**${RESET}${BLUE} MODE"
+    print "${BOLD}=========================================================="
+    print "${RED}=> You won't be able to run the binaries on other machines"
+    print "${GREEN}=> All debugging symbols will be stripped"
+    print "${GREEN}=> All optimizations are enabled"
+    flags="-O3"
+    debug=0
+    ;;
+
+  *)
+    fail "invalid build option"
+    exit 1
+    ;;
+esac
+
+# create key pair
+info "generating RSA key pair"
+rm -f "${pubfile}" "${privfile}"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:8192 -out "${privfile}"
+openssl rsa -pubout -in "${privfile}" -out "${pubfile}"
+
+privkey=$(sed -z 's/\n/\\n/g' < "${privfile}")
+pubkey=$(sed -z 's/\n/\\n/g'  < "${pubfile}" )
+
+rm "${privfile}"
+rm "${pubfile}"
 
 # build
-mkdir -pv dist
-
-gcc $CFLAGS -o dist/encryptor     \
-  -DVERSION=\"${VERSION}\"        \
-  -DBUILD_PUB="\"${PUB_KEY}\""    \
-  -DDEBUG=false                   \
-  encryptor/*.c lib/*.c $ENC_LIBS
-
-gcc $CFLAGS -o dist/decryptor     \
-  -DVERSION=\"${VERSION}\"        \
-  -DBUILD_PUB="\"${PUB_KEY}\""    \
-  -DBUILD_PRIV="\"${PRIV_KEY}\""  \
-  -DDEBUG=false                   \
-  decryptor/*.c lib/*.c $DEC_LIBS
+make EXTRAFLAGS="${flags}" \
+  DEBUG=${debug} PUBKEY="${pubkey}" PRIVKEY="${privkey}"
 
 # strip
-if [[ "$1" != "debug" ]]; then
-  strip --strip-unneeded dist/*
-fi
+[ $debug -eq 1 ] && strip --strip-unneeded dist/*
