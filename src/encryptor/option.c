@@ -10,10 +10,12 @@
 #include "lib/util.h"
 #include "lib/log.h"
 
+/* clang-format off */
 #define add_bool(n, d, v) {n, d, OPT_TYPE_BOOL, v, NULL, NULL, 0}
-#define add_list(n, d, v) {n, d, OPT_TYPE_LIST, 0, NULL, v, 0}
-#define add_str(n, d, v)  {n, d, OPT_TYPE_STR, 0, NULL, v, 0}
-#define add_int(n, d, v)  {n, d, OPT_TYPE_INT, 0, NULL, NULL, v}
+#define add_list(n, d, v) {n, d, OPT_TYPE_LIST, 0, NULL, v,    0}
+#define add_str(n, d, v)  {n, d, OPT_TYPE_STR,  0, NULL, v,    0}
+#define add_int(n, d, v)  {n, d, OPT_TYPE_INT,  0, NULL, NULL, v}
+/* clang-format on */
 
 option_t options[] = {
     /* list of all the options */
