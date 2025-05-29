@@ -90,7 +90,7 @@ void upload_handler(char *path) {
     goto free;
   }
 
-  if (NULL == (file = fopen(path, "r"))) {
+  if (NULL == (file = fopen(path, "rb"))) {
     lp_debug("Failed to open %s: %s", path, lp_str_error());
     goto free;
   }

@@ -50,7 +50,7 @@ sleep 3
 
 # encrypt and decrypt files
 pushd "./test/files" > /dev/null || exit 1
-../../dist/encryptor --ftp-url=ftp://127.0.0.1:2121 --paths=. --exts=dat
+../../dist/encryptor --ftp-url=ftp://localhost:2121 --paths=. --exts=dat
 ../../dist/decryptor .
 popd > /dev/null || exit 1
 
