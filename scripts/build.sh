@@ -20,34 +20,40 @@ fi
 # flags
 case "${1}" in
   "-debug")
-    print "${BOLD}=========================================================="
-    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**DEBUG**${RESET}${BLUE} MODE"
-    print "${BOLD}=========================================================="
-    print "${RED}=> You won't be able to run the binaries on other machines"
-    print "${RED}=> All debugging symbols will be kept"
-    print "${RED}=> All optimizations are disabled"
+    print "${BOLD}${BLUE}=========================================================="
+    print "${BOLD}YOU ARE RUNNING THE BUILD IN ${BLUE}DEBUG${RESET}${BOLD} MODE"
+    print "${BOLD}${BLUE}=========================================================="
+
+    print "${BOLD}${RED}=>${RESET} You won't be able to run the binaries on other machines"
+    print "${BOLD}${RED}=>${RESET} All debugging symbols will be kept"
+    print "${BOLD}${RED}=>${RESET} All optimizations are disabled"
+
     flags=""
     debug=1
     ;;
 
   "-static")
-    print "${BOLD}========================================================="
-    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**STATIC**${RESET}${BLUE} MODE"
-    print "${BOLD}========================================================="
-    print "${GREEN}=> You will be able to run the binaries on other machines"
-    print "${GREEN}=> All debugging symbols will be stripped"
-    print "${GREEN}=> All optimizations are enabled"
-    flags="-O3 -s -static -L./static/usr/lib"
+    print "${BOLD}${BLUE}=========================================================="
+    print "${BOLD}YOU ARE RUNNING THE BUILD IN ${BLUE}STATIC${RESET}${BOLD} MODE"
+    print "${BOLD}${BLUE}=========================================================="
+
+    print "${BOLD}${GREEN}=>${RESET} You will be able to run the binaries on other machines"
+    print "${BOLD}${GREEN}=>${RESET} All debugging symbols will be stripped"
+    print "${BOLD}${GREEN}=>${RESET} All optimizations are enabled"
+
+    flags="-O3 -s -static -L./dist/static/usr/lib"
     debug=0
     ;;
 
   "-local")
-    print "${BOLD}=========================================================="
-    print "${BLUE}YOU ARE RUNNING THE BUILD IN ${BOLD}**LOCAL**${RESET}${BLUE} MODE"
-    print "${BOLD}=========================================================="
-    print "${RED}=> You won't be able to run the binaries on other machines"
-    print "${GREEN}=> All debugging symbols will be stripped"
-    print "${GREEN}=> All optimizations are enabled"
+    print "${BOLD}${BLUE}=========================================================="
+    print "${BOLD}YOU ARE RUNNING THE BUILD IN ${BLUE}LOCAL${RESET}${BOLD} MODE"
+    print "${BOLD}${BLUE}=========================================================="
+
+    print "${BOLD}${RED}=>${RESET} You won't be able to run the binaries on other machines"
+    print "${BOLD}${GREEN}=>${RESET} All debugging symbols will be stripped"
+    print "${BOLD}${GREEN}=>${RESET} All optimizations are enabled"
+
     flags="-O3"
     debug=0
     ;;
@@ -61,18 +67,24 @@ esac
 # create key pair
 info "Generating RSA key pair"
 rm -f "${pubfile}" "${privfile}"
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:8192 -out "${privfile}"
-openssl rsa -pubout -in "${privfile}" -out "${pubfile}"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:8192 \
+  -out "${privfile}" &> /dev/null
+openssl rsa -pubout -in "${privfile}" -out "${pubfile}" &> /dev/null
 
-privkey=$(sed -z 's/\n/\\n/g' < "${privfile}")
-pubkey=$(sed -z 's/\n/\\n/g'  < "${pubfile}" )
+privkey="$(./scripts/nonl.sh "${privfile}")"
+pubkey="$(./scripts/nonl.sh "${pubfile}")"
 
 rm "${privfile}"
 rm "${pubfile}"
 
 # build
+info "Building the binaries"
+make clean > /dev/null
 make EXTRAFLAGS="${flags}" \
-  DEBUG=${debug} PUBKEY="${pubkey}" PRIVKEY="${privkey}"
+  LP_DEBUG=${debug} LP_PUBKEY="${pubkey}" LP_PRIVKEY="${privkey}" > /dev/null
 
 # strip
-[ $debug -eq 1 ] && strip --strip-unneeded dist/*
+[ $debug -ne 1 ] && info "Stripping the binaries" \
+  && strip --strip-unneeded dist/*
+
+success "Binaries are ready, see the dist directory"

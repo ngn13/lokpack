@@ -27,17 +27,17 @@ class Patcher:
             + b"-----END PUBLIC KEY-----\\n"
         )
         self.priv_regex = (
-            b"-----BEGIN RSA PRIVATE KEY-----"
+            b"-----BEGIN PRIVATE KEY-----"
             + b"([0-9A-Za-z]|\\n|\\r|\\/|=|\\+)*"
-            + b"-----END RSA PRIVATE KEY-----\\n"
+            + b"-----END PRIVATE KEY-----\\n"
         )
         self.gen_rsa()
 
     def gen_rsa(self) -> None:
-        info("Generating an 8192 bit RSA key (may take a second)")
+        info("Generating an 8192 bit RSA key (may take a minute)")
         rsa_key = RSA.generate(8192)
         self.pub_key = rsa_key.public_key().export_key() + b"\n"
-        self.priv_key = rsa_key.export_key() + b"\n"
+        self.priv_key = rsa_key.export_key(pkcs=8) + b"\n"
         success(f"Public key SHA256: {sha256(self.pub_key).hexdigest()}")
 
     def patch_all(self) -> None:

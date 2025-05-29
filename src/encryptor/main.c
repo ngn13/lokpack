@@ -290,6 +290,7 @@ int main(int argc, char **argv) {
     quit(EXIT_FAILURE);
   }
 
+  /* TODO: match any extension if no extension is specified */
   if (opt_empty(exts))
     exts = NULL;
 
