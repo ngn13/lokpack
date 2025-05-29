@@ -18,7 +18,6 @@ ImplementationFileExtensions:
   - cpp
   - cxx
 HeaderFilterRegex: '.*'
-ExcludeHeaderFilterRegex: ''
 FormatStyle: file
 SystemHeaders: false
 ...
