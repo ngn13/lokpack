@@ -50,7 +50,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc make sed grep \
-            libssl-dev libcurl4-openssl-dev
+            libssl-dev libcurl4-openssl-dev         \
+            python3 python-pyftpdlib
 
       - name: "Build the binaries"
         run: make
