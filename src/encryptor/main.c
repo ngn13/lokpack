@@ -48,10 +48,11 @@ EVP_PKEY *pub_key = NULL;
 char      pub_hash[LP_SHA256_SIZE];
 char      pub_ext[7] = {0};
 
-void free_resources(void) {
+void quit(int code) {
   lp_traverser_free(&trav);
   lp_rsa_key_free(pub_key);
   free(ftp_creds);
+  exit(code);
 }
 
 void signal_handler(int signal) {
@@ -62,7 +63,7 @@ void signal_handler(int signal) {
   }
 
   lp_info("Stopping the program, wait for ongoing operations");
-  free_resources();
+  quit(EXIT_FAILURE);
 }
 
 void upload_handler(char *path) {
@@ -267,11 +268,11 @@ int main(int argc, char **argv) {
     /* check for the help option */
     if (lp_streq(argv[i], "-h") || lp_streq(argv[i], "--help")) {
       opt_help();
-      return EXIT_SUCCESS;
+      quit(EXIT_SUCCESS);
     }
 
     if (!opt_parse(argv[i]))
-      goto end;
+      quit(EXIT_FAILURE);
   }
 
   lp_info("Running " FG_BOLD LP_VERSION FG_RESET " with following options:");
@@ -283,7 +284,7 @@ int main(int argc, char **argv) {
 
   if (opt_empty(paths)) {
     lp_fail("Please specify at least one target directory");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   if (opt_empty(exts))
@@ -297,17 +298,17 @@ int main(int argc, char **argv) {
   if (!opt_bool("no-ftp")) {
     if (NULL == ftp_url) {
       lp_fail("No FTP(S) URL is specified, use no-ftp to disable FTP(S)");
-      goto end;
+      quit(EXIT_FAILURE);
     }
 
     if (NULL == ftp_usr) {
       lp_fail("No FTP(S) user is specified, use no-ftp to disable FTP(S)");
-      goto end;
+      quit(EXIT_FAILURE);
     }
 
     if (NULL == ftp_pwd) {
       lp_fail("No FTP(s) password is specified, use no-ftp to disable FTP(S)");
-      goto end;
+      quit(EXIT_FAILURE);
     }
   }
 
@@ -318,13 +319,13 @@ int main(int argc, char **argv) {
   if (NULL != ftp_usr && NULL != ftp_pwd &&
       snprintf(ftp_creds, len + 1, "%s:%s", ftp_usr, ftp_pwd) != len) {
     lp_fail("Failed to format the FTP(S) credentials: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* obtain & check the thread count for the thread pool */
   if ((threads = opt_int("threads")) <= 0) {
     lp_fail("Please specify a valid thread number (at least one)");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* load all the public key stuff */
@@ -333,13 +334,13 @@ int main(int argc, char **argv) {
 
   if (NULL == (pub_key = lp_rsa_key_load())) {
     lp_fail("Failed to load the public key, is the key valid?");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* setup the traverser (see lib/traverse.c) */
   if (!lp_traverser_setup(&trav, threads, exts)) {
     lp_fail("Failed to create a traverser: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* quitting with SIGINT after this point will require confirmation */
@@ -362,7 +363,7 @@ int main(int argc, char **argv) {
 
   if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
     lp_fail("Failed to wait for upload threads: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /*
@@ -381,13 +382,9 @@ int main(int argc, char **argv) {
 
   if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
     lp_fail("Failed to wait for encryption threads: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   lp_success("Operation completed");
-  ret = EXIT_SUCCESS;
-
-end:
-  free_resources();
-  return ret;
+  quit(EXIT_SUCCESS);
 }

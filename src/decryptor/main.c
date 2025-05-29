@@ -43,15 +43,17 @@ lp_traverser_t trav;
 EVP_PKEY *priv_key   = NULL;
 char      pub_ext[7] = {0};
 
-void free_resources(void) {
+void quit(int code) {
   lp_traverser_free(&trav);
   lp_rsa_key_free(priv_key);
+  exit(code);
 }
 
 void signal_handler(int signal) {
-  (void)signal;
+  (void)signal; /* unused */
+
   lp_info("Stopping the program, wait for ongoing operations");
-  free_resources();
+  quit(EXIT_FAILURE);
 }
 
 void decrypt_handler(char *path) {
@@ -197,19 +199,19 @@ int main(int argc, char *argv[]) {
   /* load the private RSA key */
   if (NULL == (priv_key = lp_rsa_key_load())) {
     lp_fail("Failed to load the private key, is the key valid?");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* calculate the public key hash and the extension for the encrypted files */
   if (NULL == lp_sha256(LP_PUBKEY, hash)) {
     lp_fail("Failed to calculate hash of the public key");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", hash) !=
       (int)sizeof(pub_ext) - 1) {
     lp_fail("Failed to format the encrypted file extension");
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   /* setup the traverser */
@@ -218,7 +220,7 @@ int main(int argc, char *argv[]) {
 
   if (!lp_traverser_setup(&trav, LP_THREADS, exts)) {
     lp_fail("Failed to create traverser: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   lp_traverser_set_mode(&trav, R_OK | W_OK);
@@ -232,13 +234,9 @@ int main(int argc, char *argv[]) {
 
   if (!lp_traverser_wait(&trav, true)) {
     lp_fail("Failed to wait for decryption threads: %s", lp_str_error());
-    goto end;
+    quit(EXIT_FAILURE);
   }
 
   lp_success("Operation completed");
-  ret = EXIT_SUCCESS;
-
-end:
-  free_resources();
-  return ret;
+  quit(EXIT_SUCCESS);
 }
