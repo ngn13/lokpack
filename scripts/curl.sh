@@ -13,19 +13,19 @@ mkdir -p dist/static && cd dist/static
 static="${PWD}"
 
 # download & verify the source archive
-info "downloading curl release archive"
+info "Downloading curl release archive"
 wget "${curl_url}"
 get_file "${curl_url}"
 check_hash "${file}" "${curl_hash}"
 
 # extract the source archive
-info "extracting curl release archive"
+info "Extracting curl release archive"
 tar xf "${file}"
 dir="${file%.tar.xz*}"
 
 # configure and build
 pushd "${dir}"
-  info "starting build (using all CPU cores)"
+  info "Starting build (using all CPU cores)"
   ./configure --prefix=/usr     \
               --without-libssh2 \
               --without-nghttp2 \
@@ -42,5 +42,5 @@ pushd "${dir}"
   make DESTDIR="${static}" install
 popd
 
-success "build successful, cleaning up"
+success "Build successful, cleaning up"
 rm "${file}" && rm -r "${dir}"

@@ -13,15 +13,15 @@ print() {
 }
 
 fail(){
-  print "${BOLD}${RED}[!]${RESET}${BOLD}${1}"
+  print "${BOLD}${RED}[!]${RESET} ${BOLD}${1}"
 }
 
 success() {
-  print "${BOLD}${GREEN}[+]${RESET}${BOLD}${1}"
+  print "${BOLD}${GREEN}[+]${RESET} ${BOLD}${1}"
 }
 
 info(){
-  print "${BOLD}${BLUE}[*]${RESET}${BOLD}${1}"
+  print "${BOLD}${BLUE}[*]${RESET} ${BOLD}${1}"
 }
 
 openssl_url="https://www.openssl.org/source/openssl-3.5.0.tar.gz"
@@ -35,11 +35,11 @@ get_file() {
 }
 
 check_hash() {
-  if ! echo "${2} ${1}" | sha1sum -c > /dev/null; then
-    fail "hash verification for ${1} failed"
+  if ! echo "${2} ${1}" | sha256sum -c > /dev/null; then
+    fail "Hash verification for ${1} failed"
     return 1
   fi
 
-  success "hash verification was sucessful"
+  success "Hash verification was sucessful for ${1}"
   return 0
 }

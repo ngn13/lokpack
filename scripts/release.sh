@@ -15,16 +15,16 @@ reldir="/tmp/lokpack-release"
 ./scripts/build.sh -static
 
 # create the release directory
-info "creating the release directory"
+info "Creating the release directory"
 mkdir -p "${reldir}"
 
 # copy the binaries and patch script
-info "copying the release files"
+info "Copying the release files"
 mv dist/encryptor dist/decryptor "${reldir}"
 cp scripts/patch.py "${reldir}"
 
 # archive all
-info "creating the release archive"
+info "Creating the release archive"
 pushd "${reldir}" > /dev/null
   tar czf "${reldir}/lokpack-${VERSION}.tar.gz" *
 popd > /dev/null
@@ -32,4 +32,4 @@ popd > /dev/null
 mv "${reldir}/lokpack-"*".tar.gz" .
 rm -r "${reldir}"
 
-success "created the release archive"
+success "Created the release archive"

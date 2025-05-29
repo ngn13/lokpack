@@ -1,4 +1,5 @@
-.cache
+dist/
+test/
+.cache/
 compile_commands.json
 *.tar.gz
-dist/

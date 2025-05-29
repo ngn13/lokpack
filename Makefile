@@ -55,7 +55,10 @@ check:
 		$(LIB_C) $(LIB_H) $(ENC_C) $(ENC_H) $(DEC_C) $(DEC_H) -- $(INC)
 	black -q -l 80 --check scripts/*.py
 
+test:
+	bash ./scripts/test.sh
+
 clean:
 	rm -r dist
 
-.PHONY: format check clean
+.PHONY: format check test clean

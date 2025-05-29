@@ -13,19 +13,19 @@ mkdir -p dist/static && cd dist/static
 static="${PWD}"
 
 # download & verify the source archive
-info "downloading openssl release archive"
+info "Downloading openssl release archive"
 wget "${openssl_url}"
 get_file "${openssl_url}"
 check_hash "${file}" "${openssl_hash}"
 
 # extract the source archive
-info "extracting openssl release archive"
+info "Extracting openssl release archive"
 tar xf "${file}"
 dir="${file%.tar.gz*}"
 
 # configure and build
 pushd "${dir}"
-  info "starting build (using all CPU cores)"
+  info "Starting build (using all CPU cores)"
   ./config --prefix=/usr         \
            --openssldir=/etc/ssl \
            --libdir=lib          \
@@ -34,5 +34,5 @@ pushd "${dir}"
   make DESTDIR="${static}" install
 popd
 
-success "build successful, cleaning up"
+success "Build successful, cleaning up"
 rm "${file}" && rm -r "${dir}"

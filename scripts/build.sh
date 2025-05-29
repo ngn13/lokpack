@@ -13,7 +13,7 @@ privfile="/tmp/lokpack_priv"
 pubfile="/tmp/lokpack_pub"
 
 if [ -z "${1}" ]; then
-  fail "please specify a build mode"
+  fail "Please specify a build mode"
   exit 1
 fi
 
@@ -53,13 +53,13 @@ case "${1}" in
     ;;
 
   *)
-    fail "invalid build option"
+    fail "Invalid build option: ${1}"
     exit 1
     ;;
 esac
 
 # create key pair
-info "generating RSA key pair"
+info "Generating RSA key pair"
 rm -f "${pubfile}" "${privfile}"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:8192 -out "${privfile}"
 openssl rsa -pubout -in "${privfile}" -out "${pubfile}"

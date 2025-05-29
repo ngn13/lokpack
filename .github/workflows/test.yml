@@ -1,0 +1,59 @@
+name: Tests
+
+on:
+  push:
+    paths-ignore:
+      - ".github/workflows/release.yml"
+      - ".clang-format"
+      - ".clang-tidy"
+      - "README.md"
+      - "LICENSE.txt"
+    branches:
+      - "main"
+
+  pull_request:
+    paths-ignore:
+      - ".github/workflows/release.yml"
+      - ".clang-format"
+      - ".clang-tidy"
+      - "README.md"
+      - "LICENSE.txt"
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the source code"
+        uses: actions/checkout@v3
+
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make sed grep \
+            clang-format-19 clang-tidy-19 black
+
+      - name: "Check the source code"
+        run: make check
+
+  test:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the source code"
+        uses: actions/checkout@v3
+
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make sed grep \
+            openssl-dev libcurl4-openssl-dev
+
+      - name: "Build the binaries"
+        run: make
+
+      - name: "Run the test script"
+        run: make test
