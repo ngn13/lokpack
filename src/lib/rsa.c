@@ -75,7 +75,13 @@ bool lp_rsa_load(lp_rsa_t *rsa) {
   secrets[0] = rsa->secret;
 
 #ifdef LP_PRIVKEY
-  (void)secrets;
+  /*
+
+   * BUG: for some reason OpenInit takes a lot of time on weaker hardware, this
+   *      might be related to the key size or maybe something is wrong with my
+   *      implementation here, idk
+
+  */
   if (EVP_OpenInit(rsa->ctx,
           EVP_aes_256_cbc(),
           secrets[0],

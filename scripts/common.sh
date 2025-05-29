@@ -35,11 +35,13 @@ get_file() {
 }
 
 check_hash() {
-  if ! echo "${2} ${1}" | sha256sum -c > /dev/null; then
-    fail "Hash verification for ${1} failed"
-    return 1
+  hash="$(sha256sum "${1}" | awk '{print $1}')"
+
+  if [[ "${hash}" == "${2}" ]]; then
+    success "Hash verification was sucessful for ${1}"
+    return 0
   fi
 
-  success "Hash verification was sucessful for ${1}"
-  return 0
+  fail "Hash verification for ${1} failed"
+  return 1
 }

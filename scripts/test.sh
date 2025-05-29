@@ -18,7 +18,7 @@ source scripts/common.sh
 [ ! -f "dist/decryptor" ] && fail "Build the decryptor first" && exit 1
 
 rand() {
-  shuf -i "${1}-${2}" -n 1
+  echo $(($1 + $RANDOM % ($2 + 1 - $1)))
 }
 
 # cleanup and create the test directory
@@ -37,7 +37,7 @@ pushd "./test/files" > /dev/null || exit 1
 
 for _ in $(seq 1 $(rand 5 20)); do
   name="$(openssl rand -hex 4).dat"
-  openssl rand $(shuf -i 50-1000 -n 1) > "${name}"
+  openssl rand $(rand 50 1000) > "${name}"
   sums+=("$(sha256sum "${name}")")
 done
 
