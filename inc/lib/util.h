@@ -25,4 +25,5 @@ bool lp_has_exts(char *name, char **exts);
 char *lp_sha256(char *str, char *hash);
 
 char **lp_split(char *str, char sep);
+void   lp_split_free(char **list);
 void   lp_replace(char *str, char old, char new);

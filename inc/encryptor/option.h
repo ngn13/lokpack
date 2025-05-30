@@ -23,11 +23,13 @@ typedef struct {
   int    value_int;
 } option_t;
 
-#define opt_empty(opt) (NULL == opt || *opt == 0)
+#define opt_is_empty_str(opt)  (NULL == (opt) || *(opt) == 0)
+#define opt_is_empty_list(opt) (NULL == (opt) || opt_is_empty_str(*(opt)))
 
 bool opt_parse(char *option);
 void opt_print(void);
 void opt_help(void);
+void opt_free(void);
 
 bool   opt_bool(char *name);
 char **opt_list(char *name);

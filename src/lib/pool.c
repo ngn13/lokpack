@@ -136,6 +136,11 @@ bool lp_pool_wait(lp_pool_t *pool, bool display) {
   /* TODO: implement bar for the display option */
   (void)display;
 
+  if (NULL == pool) {
+    errno = EINVAL;
+    return false;
+  }
+
   pool_lock();
 
   while (pool->queue_len > 0)

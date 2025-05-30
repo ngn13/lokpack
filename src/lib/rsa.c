@@ -14,8 +14,9 @@
 #include "lib/log.h"
 #include "lib/rsa.h"
 
-EVP_PKEY *lp_rsa_key_load(void) {
-  EVP_PKEY *key = NULL;
+static EVP_PKEY *lp_rsa_key;
+
+bool lp_rsa_key_load(void) {
 #ifdef LP_PRIVKEY
   BIO *bio = BIO_new_mem_buf(LP_PRIVKEY, -1);
 #else
@@ -29,31 +30,30 @@ EVP_PKEY *lp_rsa_key_load(void) {
   }
 
 #ifdef LP_PRIVKEY
-  key = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+  lp_rsa_key = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
 #else
-  key = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+  lp_rsa_key = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
 #endif
   BIO_free(bio);
 
-  if (NULL == key) {
+  if (NULL == lp_rsa_key) {
     lp_debug("Failed to initialize key");
     lp_openssl_error();
     return false;
   }
 
-  return key;
+  return true;
 }
 
-void lp_rsa_key_free(EVP_PKEY *key) {
-  if (NULL != key)
-    EVP_PKEY_free(key);
+void lp_rsa_key_free(void) {
+  if (NULL != lp_rsa_key)
+    EVP_PKEY_free(lp_rsa_key);
+  lp_rsa_key = NULL;
 }
 
-void lp_rsa_init(lp_rsa_t *rsa, EVP_PKEY *key) {
-  if (NULL != rsa && NULL != key) {
+void lp_rsa_init(lp_rsa_t *rsa) {
+  if (NULL != rsa)
     memset(rsa, 0, sizeof(*rsa));
-    rsa->key = key;
-  }
 }
 
 bool lp_rsa_load(lp_rsa_t *rsa) {
@@ -62,6 +62,12 @@ bool lp_rsa_load(lp_rsa_t *rsa) {
 
   if (NULL == rsa) {
     errno = EINVAL;
+    return false;
+  }
+
+  /* lp_rsa_key_load() should be called first to load the RSA key */
+  if (NULL == lp_rsa_key) {
+    errno = EAGAIN;
     return false;
   }
 
@@ -87,7 +93,7 @@ bool lp_rsa_load(lp_rsa_t *rsa) {
           secrets[0],
           secret_len,
           rsa->iv,
-          rsa->key) == 0) {
+          lp_rsa_key) == 0) {
     lp_debug("Failed to initialize cipher ctx");
     lp_openssl_error();
     return false;
@@ -98,7 +104,7 @@ bool lp_rsa_load(lp_rsa_t *rsa) {
           secrets,
           &secret_len,
           rsa->iv,
-          &rsa->key,
+          &lp_rsa_key,
           1) != 1) {
     lp_debug("Failed to initialize cipher ctx");
     lp_openssl_error();

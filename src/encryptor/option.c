@@ -17,7 +17,7 @@
 #define add_int(n, d, v)  {n, d, OPT_TYPE_INT,  0, NULL, NULL, v}
 /* clang-format on */
 
-option_t options[] = {
+static option_t options[] = {
     /* list of all the options */
     add_int("threads", "Thread count for the thread pool", 20),
 
@@ -37,6 +37,7 @@ option_t options[] = {
 };
 
 #define OPT_NAME_MAX     8
+#define opt_to_list(opt) ((opt)->value_list = lp_split((opt)->value_str, ','))
 #define opt_foreach(opt) for (opt = &options[0]; NULL != opt->name; opt++)
 
 void _opt_fill(char *name) {
@@ -55,15 +56,20 @@ char *_opt_value(char *option) {
 
 bool opt_parse(char *option) {
   char      full_opt[OPT_NAME_MAX + 3];
-  option_t *opt = NULL;
+  int       full_opt_len = 0;
+  option_t *opt          = NULL;
 
   /* attempt to find a matching option */
   opt_foreach(opt) {
     /* check the prefix of the option */
-    if (snprintf(full_opt, sizeof(full_opt), "--%s", opt->name) <= 0)
+    if ((full_opt_len =
+                snprintf(full_opt, sizeof(full_opt), "--%s", opt->name)) <= 0)
       continue;
 
-    if (!lp_startswith(option, full_opt, 0))
+    if (!lp_startswith(option, full_opt, full_opt_len))
+      continue;
+
+    if (*(option + full_opt_len) != '=' && *(option + full_opt_len) != 0)
       continue;
 
     /* extract the string value (if any) */
@@ -73,7 +79,7 @@ bool opt_parse(char *option) {
     switch (opt->type) {
     case OPT_TYPE_BOOL:
       if (!lp_streq(option, full_opt)) {
-        lp_fail("No value is required for option: %s", opt->name);
+        lp_fail("No value is required for the option: %s", opt->name);
         return false;
       }
 
@@ -83,12 +89,12 @@ bool opt_parse(char *option) {
 
     case OPT_TYPE_LIST:
       if (NULL == opt->value_str) {
-        lp_fail("No value is specified for option: %s", opt->name);
+        lp_fail("Missing value for the option: %s", opt->name);
         return false;
       }
 
-      if (NULL == (opt->value_list = lp_split(opt->value_str, ','))) {
-        lp_fail("Invalid list specified for option: %s", opt->name);
+      if (NULL == opt_to_list(opt)) {
+        lp_fail("Invalid list value for the option: %s", opt->name);
         return false;
       }
 
@@ -97,7 +103,7 @@ bool opt_parse(char *option) {
 
     case OPT_TYPE_STR:
       if (NULL == opt->value_str) {
-        lp_fail("No value is specified for option: %s", opt->name);
+        lp_fail("Missing value for the option: %s", opt->name);
         return false;
       }
 
@@ -105,8 +111,13 @@ bool opt_parse(char *option) {
       break;
 
     case OPT_TYPE_INT:
+      if (NULL == opt->value_str) {
+        lp_fail("Missing value for the option: %s", opt->name);
+        return false;
+      }
+
       if ((opt->value_int = atoi(opt->value_str)) <= 0) {
-        lp_fail("Bad value for option: %s", opt->name);
+        lp_fail("Invalid integer value for the option: %s", opt->name);
         return false;
       }
 
@@ -136,7 +147,7 @@ void opt_print(void) {
       printf(FG_BOLD "    %s" FG_RESET, opt->name);
       _opt_fill(opt->name);
       printf(FG_BOLD "=> %s\n" FG_RESET,
-          opt_empty(opt->value_str) ? "(empty)" : opt->value_str);
+          opt_is_empty_str(opt->value_str) ? "(empty)" : opt->value_str);
       break;
 
     case OPT_TYPE_INT:
@@ -159,13 +170,29 @@ void opt_help(void) {
   }
 }
 
+void opt_free(void) {
+  option_t *opt = NULL;
+
+  opt_foreach(opt) {
+    if (NULL != opt->value_list) {
+      lp_split_free(opt->value_list);
+      opt->value_list = NULL;
+    }
+  }
+}
+
 /* epic macro to define opt_bool(), opt_list(), opt_str() and opt_int() */
 #define opt_make(ret, val, typ, fail)                                          \
   ret opt_##val(char *option) {                                                \
     option_t *opt = NULL;                                                      \
     opt_foreach(opt) {                                                         \
-      if (typ == opt->type && lp_streq(opt->name, option))                     \
-        return opt->value_##val;                                               \
+      if (typ != opt->type || !lp_streq(opt->name, option))                    \
+        continue;                                                              \
+                                                                               \
+      if (OPT_TYPE_LIST == typ && NULL == opt->value_list)                     \
+        opt_to_list(opt);                                                      \
+                                                                               \
+      return opt->value_##val;                                                 \
     }                                                                          \
     return fail;                                                               \
   }

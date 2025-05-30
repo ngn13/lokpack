@@ -147,6 +147,9 @@ char **lp_split(char *str, char sep) {
   char   **list = NULL, **pos = NULL, *cur = NULL;
   uint32_t count = 0;
 
+  if (NULL == str)
+    return NULL;
+
   /* count how many elements are there */
   for (cur = str; *cur != 0; cur++)
     if (*cur == sep)
@@ -155,6 +158,12 @@ char **lp_split(char *str, char sep) {
   /* allocate the list */
   if (NULL == (pos = list = calloc(1, sizeof(*list) * (count + 1))))
     return NULL;
+
+  /* duplicate the original string */
+  if (NULL == (str = strdup(str))) {
+    free(list);
+    return NULL;
+  }
 
   *pos = str;
 
@@ -168,6 +177,14 @@ char **lp_split(char *str, char sep) {
   }
 
   return list;
+}
+
+void lp_split_free(char **list) {
+  if (NULL == list)
+    return;
+
+  free(*list);
+  free(list);
 }
 
 void lp_replace(char *str, char old, char new) {

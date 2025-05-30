@@ -11,14 +11,13 @@
 
 typedef struct {
   EVP_CIPHER_CTX *ctx;
-  EVP_PKEY       *key;
   uint8_t         secret[LP_RSA_SECRET_SIZE], iv[LP_RSA_IV_SIZE];
 } lp_rsa_t;
 
-EVP_PKEY *lp_rsa_key_load(void);
-void      lp_rsa_key_free(EVP_PKEY *key);
+bool lp_rsa_key_load(void);
+void lp_rsa_key_free(void);
 
-void lp_rsa_init(lp_rsa_t *rsa, EVP_PKEY *key);
+void lp_rsa_init(lp_rsa_t *rsa);
 
 bool lp_rsa_load(lp_rsa_t *rsa);
 void lp_rsa_free(lp_rsa_t *rsa);

