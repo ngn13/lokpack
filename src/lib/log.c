@@ -1,6 +1,4 @@
-#include <asm/termbits.h>
 #include <sys/ioctl.h>
-
 #include <stdarg.h>
 #include <unistd.h>
 
