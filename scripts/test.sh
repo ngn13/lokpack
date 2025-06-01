@@ -21,6 +21,12 @@ rand() {
   echo $(($1 + $RANDOM % ($2 + 1 - $1)))
 }
 
+verify() {
+  check_hash "${1}" "${2}" && return 0
+  fail "Hash verification failed for ${1}"
+  exit 1
+}
+
 # cleanup and create the test directory
 if [ -d test ] && ! rm -r test; then
   fail "Failed to remove the test directory"
@@ -69,13 +75,13 @@ popd > /dev/null || exit 1
 # stop the FTP server
 kill -9 $ftppid
 
-# check the decrypted & uploaded files
+# verify the decrypted & uploaded files
 for sum in "${sums[@]}"; do
   hash="$(echo "${sum}" | awk '{print $1}')"
   name="$(echo "${sum}" | awk '{print $2}')"
 
-  check_hash "./test/files/${name}" "${hash}" || exit 1
-  check_hash "./test/ftp/${name}" "${hash}" || exit 1
+  verify "./test/files/${name}" "${hash}"
+  verify "./test/ftp/${name}"   "${hash}"
 done
 
 success "Hash check was successful, all the files are intact"

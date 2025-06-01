@@ -81,10 +81,13 @@ rm "${pubfile}"
 info "Building the binaries"
 make clean > /dev/null
 make EXTRAFLAGS="${flags}" \
-  LP_DEBUG=${debug} LP_PUBKEY="${pubkey}" LP_PRIVKEY="${privkey}" > /dev/null
+  LP_DEBUG=${debug} LP_PUBKEY="${pubkey}" LP_PRIVKEY="${privkey}"
 
 # strip
-[ $debug -ne 1 ] && info "Stripping the binaries" \
-  && strip --strip-unneeded dist/*
+if [ $debug -ne 1 ]; then
+  info "Stripping the binaries"
+  strip --strip-unneeded dist/encryptor
+  strip --strip-unneeded dist/decryptor
+fi
 
 success "Binaries are ready, see the dist directory"

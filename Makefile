@@ -4,10 +4,10 @@ CC = gcc
 CFLAGS  = -Wall -Wextra -Werror -std=gnu89 -pedantic
 CFLAGS += -Wno-overlength-strings # public/private key is larger than 509 bytes
 CFLAGS += -fstack-protector-strong -fstack-clash-protection
-CFLAGS += -z noexecstack
+CFLAGS += -z noexecstack -Wa,--noexecstack
 
 INC  = -I./inc
-LIBS = -lpthread -lcurl -lcrypto
+LIBS = -lpthread -lcurl -lssl -lcrypto
 
 # sources
 LIB_C = $(wildcard src/lib/*.c)
@@ -59,6 +59,7 @@ test:
 	bash ./scripts/test.sh
 
 clean:
-	rm -r dist
+	rm -f dist/encryptor
+	rm -f dist/decryptor
 
 .PHONY: format check test clean

@@ -31,17 +31,11 @@ curl_url="https://curl.se/download/curl-8.13.0.tar.gz"
 curl_hash="c261a4db579b289a7501565497658bbd52d3138fdbaccf1490fa918129ab45bc"
 
 get_file() {
-  file=$(echo "${1}" | rev | cut -d/ -f1 | rev)
+  echo "${1}" | rev | cut -d/ -f1 | rev
 }
 
 check_hash() {
   hash="$(sha256sum "${1}" | awk '{print $1}')"
-
-  if [[ "${hash}" == "${2}" ]]; then
-    success "Hash verification was sucessful for ${1}"
-    return 0
-  fi
-
-  fail "Hash verification for ${1} failed"
+  [[ "${hash}" == "${2}" ]] && return 0
   return 1
 }
