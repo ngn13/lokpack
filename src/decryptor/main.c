@@ -134,7 +134,7 @@ void decrypt_handler(char *path) {
     }
 
     /* check the input/output block size */
-    if (out_len > in_len) {
+    if (out_len > in_len && size > 0) {
       lp_debug("Invalid block size for %s: %d > %d", path, out_len, in_len);
       goto free;
     }
