@@ -1,6 +1,18 @@
 # commands & flags
 CC = gcc
 
+ifneq (, $(shell which clang-format))
+  FORMATTER = clang-format
+else
+  FORMATTER = clang-format-19
+endif
+
+ifneq (, $(shell which clang-tidy))
+  LINTER = clang-tidy
+else
+  LINTER = clang-tidy-19
+endif
+
 CFLAGS  = -Wall -Wextra -Werror -std=gnu89 -pedantic
 CFLAGS += -Wno-overlength-strings # public/private key is larger than 509 bytes
 CFLAGS += -fstack-protector-strong -fstack-clash-protection
@@ -44,14 +56,14 @@ dist/decryptor: $(DEC_C) $(DEC_H) $(LIB_C) $(LIB_H)
 		$(DEC_C) $(LIB_C) -o $@ $(LIBS)
 
 format:
-	clang-format -i -Werror -style=file \
+	$(FORMATTER) -i -Werror -style=file \
 		$(LIB_C) $(LIB_H) $(ENC_C) $(ENC_H) $(DEC_C) $(DEC_H)
 	black -q -l 80 scripts/*.py
 
 check:
-	clang-format -n -Werror -style=file \
+	$(FORMATTER) -n -Werror -style=file \
 		$(LIB_C) $(LIB_H) $(ENC_C) $(ENC_H) $(DEC_C) $(DEC_H)
-	clang-tidy --warnings-as-errors --config= \
+	$(LINTER) --warnings-as-errors --config= \
 		$(LIB_C) $(LIB_H) $(ENC_C) $(ENC_H) $(DEC_C) $(DEC_H) -- $(INC)
 	black -q -l 80 --check scripts/*.py
 
