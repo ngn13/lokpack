@@ -45,15 +45,18 @@ for i in $(seq 1 $(rand 5 20)); do
   name="$(openssl rand -hex 4).dat"
   case $i in
     1)
+      # small file (42 bytes)
       openssl rand 42 > "${name}"
       ;;
 
     2)
+      # large file (1 GiB)
       openssl rand 1073741824 > "${name}"
       ;;
 
     *)
-      openssl rand $(rand 2048 55555) > "${name}"
+      # random sized file (2 KiB - 1 MiB)
+      openssl rand $(rand 2048 1048576) > "${name}"
       ;;
   esac
   sums+=("$(sha256sum "${name}")")
@@ -64,7 +67,7 @@ popd > /dev/null || exit 1
 # setup the FTP server
 python3 -m pyftpdlib -w -d ./test/ftp &
 ftppid=$!
-sleep 3
+sleep 6
 
 # encrypt and decrypt files
 pushd "./test/files" > /dev/null || exit 1

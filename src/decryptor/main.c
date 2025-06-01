@@ -25,12 +25,12 @@
 #include "lib/log.h"
 
 #include <openssl/evp.h>
-#include <stdint.h>
 #include <sys/stat.h>
 
+#include <unistd.h>
+#include <stdint.h>
 #include <string.h>
 #include <dirent.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -87,7 +87,8 @@ void decrypt_handler(char *path) {
   }
 
   /* read the secret and the IV */
-  if ((size = lseek(fd, -(sizeof(rsa.secret) + sizeof(rsa.iv)), SEEK_END)) <
+  if ((size = lseek(
+           fd, (off_t)(sizeof(rsa.secret) + sizeof(rsa.iv)) * -1, SEEK_END)) <
       0) {
     lp_debug("Failed to seek to the start of secret in %s: %s",
         path,
