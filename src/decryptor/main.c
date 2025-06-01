@@ -117,13 +117,14 @@ void decrypt_handler(char *path) {
   }
 
   /* read from the input file, one block at a time */
-  while ((in_len = read(fd,
-              in_buf,
-              (off_t)sizeof(in_buf) > size ? size : sizeof(in_buf))) > 0) {
+  while (
+      (in_len = read(fd,
+           in_buf,
+           (off_t)sizeof(in_buf) > size ? (size_t)size : sizeof(in_buf))) > 0) {
     /* decrease the remaining size (don't accidentally read the secret and IV */
     size -= in_len;
 
-    /* WARN: read_pos is not updated until the write(), be carefull using it */
+    /* WARN: read_pos is not updated until the write(), be careful using it */
 
     /* decrypt the full/partial block */
     if (!lp_rsa_decrypt(&rsa, in_buf, in_len, out_buf, &out_len)) {
