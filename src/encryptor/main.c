@@ -162,7 +162,7 @@ void encrypt_handler(char *path) {
     }
 
     /* go back to the start of the block */
-    if (lseek(fd, (off_t)in_len * 1, SEEK_CUR) < 0) {
+    if (lseek(fd, (off_t)in_len * -1, SEEK_CUR) < 0) {
       lp_debug("Failed to seek to block for %s: %s", path, lp_str_error());
       goto free;
     }

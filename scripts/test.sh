@@ -46,17 +46,17 @@ for i in $(seq 1 $(rand 5 20)); do
   case $i in
     1)
       # small file (42 bytes)
-      openssl rand 42 > "${name}"
+      head -c 42 /dev/urandom > "${name}"
       ;;
 
     2)
       # large file (1 GiB)
-      openssl rand 1073741824 > "${name}"
+      head -c 1073741824 /dev/urandom > "${name}"
       ;;
 
     *)
       # random sized file (2 KiB - 1 MiB)
-      openssl rand $(rand 2048 1048576) > "${name}"
+      head -c $(rand 2048 1048576) /dev/urandom > "${name}"
       ;;
   esac
   sums+=("$(sha256sum "${name}")")
