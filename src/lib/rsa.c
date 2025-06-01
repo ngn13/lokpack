@@ -125,16 +125,17 @@ void lp_rsa_free(lp_rsa_t *rsa) {
   memset(rsa, 0, sizeof(*rsa));
 }
 
-bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len) {
+bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *in_buf, int in_len,
+    uint8_t *out_buf, int *out_len) {
 #ifndef LP_PRIVKEY
   /* check the arguments */
-  if (NULL == rsa || NULL == buf || in_len <= 0) {
+  if (NULL == rsa || NULL == in_buf || NULL == out_buf || NULL == out_len) {
     errno = EINVAL;
     return false;
   }
 
   /* "seal" (encrypt) the provided "envelope" (data) */
-  if (!EVP_SealUpdate(rsa->ctx, buf, out_len, buf, in_len)) {
+  if (!EVP_SealUpdate(rsa->ctx, out_buf, out_len, in_buf, in_len)) {
     lp_debug("Failed to encrypt data");
     lp_openssl_error();
     return false;
@@ -143,8 +144,11 @@ bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len) {
   return true;
 #else
   (void)rsa;
-  (void)buf;
+
+  (void)in_buf;
   (void)in_len;
+
+  (void)out_buf;
   (void)out_len;
 
   errno = ENOSYS;
@@ -152,16 +156,17 @@ bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len) {
 #endif
 }
 
-bool lp_rsa_decrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len) {
+bool lp_rsa_decrypt(lp_rsa_t *rsa, uint8_t *in_buf, int in_len,
+    uint8_t *out_buf, int *out_len) {
 #ifdef LP_PRIVKEY
   /* check the arguments */
-  if (NULL == rsa || NULL == buf || NULL == out_len) {
+  if (NULL == rsa || NULL == in_buf || NULL == out_buf || NULL == out_len) {
     errno = EINVAL;
     return false;
   }
 
   /* "open" (decrypt) the provided "envelope" (data) */
-  if (!EVP_OpenUpdate(rsa->ctx, buf, out_len, buf, in_len)) {
+  if (!EVP_OpenUpdate(rsa->ctx, out_buf, out_len, in_buf, in_len)) {
     lp_debug("Failed to decrypt data");
     lp_openssl_error();
     return false;
@@ -170,8 +175,11 @@ bool lp_rsa_decrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len) {
   return true;
 #else
   (void)rsa;
-  (void)buf;
+
+  (void)in_buf;
   (void)in_len;
+
+  (void)out_buf;
   (void)out_len;
 
   errno = ENOSYS;

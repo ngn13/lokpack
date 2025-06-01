@@ -136,24 +136,24 @@ void opt_print(void) {
   opt_foreach(opt) {
     switch (opt->type) {
     case OPT_TYPE_BOOL:
-      printf(FG_BOLD "    %s" FG_RESET, opt->name);
+      printf(LP_LOG_BOLD "    %s" LP_LOG_RESET, opt->name);
       _opt_fill(opt->name);
-      printf(FG_BOLD "=> %s\n" FG_RESET,
-          opt->value_bool ? FG_GREEN "true" : FG_RED "false");
+      printf(LP_LOG_BOLD "=> %s\n" LP_LOG_RESET,
+          opt->value_bool ? LP_LOG_GREEN "true" : LP_LOG_RED "false");
       break;
 
     case OPT_TYPE_LIST:
     case OPT_TYPE_STR:
-      printf(FG_BOLD "    %s" FG_RESET, opt->name);
+      printf(LP_LOG_BOLD "    %s" LP_LOG_RESET, opt->name);
       _opt_fill(opt->name);
-      printf(FG_BOLD "=> %s\n" FG_RESET,
+      printf(LP_LOG_BOLD "=> %s\n" LP_LOG_RESET,
           opt_is_empty_str(opt->value_str) ? "(empty)" : opt->value_str);
       break;
 
     case OPT_TYPE_INT:
-      printf(FG_BOLD "    %s" FG_RESET, opt->name);
+      printf(LP_LOG_BOLD "    %s" LP_LOG_RESET, opt->name);
       _opt_fill(opt->name);
-      printf(FG_BOLD "=> %d\n" FG_RESET, opt->value_int);
+      printf(LP_LOG_BOLD "=> %d\n" LP_LOG_RESET, opt->value_int);
       break;
     }
   }
@@ -164,9 +164,9 @@ void opt_help(void) {
   lp_info("Listing available options:");
 
   opt_foreach(opt) {
-    printf(FG_BOLD "    --%s" FG_RESET, opt->name);
+    printf(LP_LOG_BOLD "    --%s" LP_LOG_RESET, opt->name);
     _opt_fill(opt->name);
-    printf(FG_BOLD "=> %s\n" FG_RESET, opt->desc);
+    printf(LP_LOG_BOLD "=> %s\n" LP_LOG_RESET, opt->desc);
   }
 }
 

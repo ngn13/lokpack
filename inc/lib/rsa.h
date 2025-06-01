@@ -18,10 +18,11 @@ bool lp_rsa_key_load(void);
 void lp_rsa_key_free(void);
 
 void lp_rsa_init(lp_rsa_t *rsa);
-
 bool lp_rsa_load(lp_rsa_t *rsa);
 void lp_rsa_free(lp_rsa_t *rsa);
 
-bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len);
-bool lp_rsa_decrypt(lp_rsa_t *rsa, uint8_t *buf, int in_len, int *out_len);
-bool lp_rsa_done(lp_rsa_t *rsa, uint8_t *buf, int *len);
+bool lp_rsa_encrypt(
+    lp_rsa_t *rsa, uint8_t *in_buf, int in_len, uint8_t *out_buf, int *out_len);
+bool lp_rsa_decrypt(
+    lp_rsa_t *rsa, uint8_t *in_buf, int in_len, uint8_t *out_buf, int *out_len);
+bool lp_rsa_done(lp_rsa_t *rsa, uint8_t *in_buf, int *len);

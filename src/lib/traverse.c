@@ -187,7 +187,11 @@ bool lp_traverser_run(char *path) {
   return true;
 }
 
-void lp_traverser_wait(bool display) {
-  if (NULL != lp_trav_pool)
-    lp_pool_wait(lp_trav_pool, display);
+void lp_traverser_wait(bool bar) {
+  if (NULL == lp_trav_pool)
+    return;
+
+  /* wait for all the pool threads and reset the work stats */
+  lp_pool_wait(lp_trav_pool, bar);
+  lp_pool_reset(lp_trav_pool);
 }

@@ -25,6 +25,7 @@
 #include "lib/log.h"
 
 #include <openssl/evp.h>
+#include <stdint.h>
 #include <sys/stat.h>
 
 #include <string.h>
@@ -62,10 +63,12 @@ void decrypt_handler(char *path) {
   bool     ret = false;
   lp_rsa_t rsa;
 
+  uint8_t out_buf[LP_RSA_BLOCK_SIZE];
+  uint8_t in_buf[LP_RSA_BLOCK_SIZE];
+
   /* file stuff */
-  int     fd = -1, in_len = 0, out_len = 0;
-  uint8_t buf[LP_RSA_BLOCK_SIZE];
-  long    size = -1;
+  int   fd = -1, in_len = 0, out_len = 0;
+  off_t size = -1, write_pos = 0, read_pos = 0;
 
   /* path stuff */
   int   new_path_len = strlen(path) - sizeof(pub_ext);
@@ -102,7 +105,7 @@ void decrypt_handler(char *path) {
     goto free;
   }
 
-  if (lseek(fd, 0, SEEK_SET) < 0) {
+  if (lseek(fd, 0, SEEK_SET) != 0) {
     lp_debug("Failed to seek to the start of %s: %s", path, lp_str_error());
     goto free;
   }
@@ -114,14 +117,16 @@ void decrypt_handler(char *path) {
   }
 
   /* read from the input file, one block at a time */
-  while ((in_len = read(
-              fd, buf, (long)sizeof(buf) > size ? (size_t)size : sizeof(buf))) >
-         0) {
+  while ((in_len = read(fd,
+              in_buf,
+              (off_t)sizeof(in_buf) > size ? size : sizeof(in_buf))) > 0) {
     /* decrease the remaining size (don't accidentally read the secret and IV */
     size -= in_len;
 
+    /* WARN: read_pos is not updated until the write(), be carefull using it */
+
     /* decrypt the full/partial block */
-    if (!lp_rsa_decrypt(&rsa, buf, in_len, &out_len)) {
+    if (!lp_rsa_decrypt(&rsa, in_buf, in_len, out_buf, &out_len)) {
       lp_debug("Failed to decrypt %s (%lu, %lu)", path, in_len, out_len);
       goto free;
     }
@@ -132,15 +137,27 @@ void decrypt_handler(char *path) {
       goto free;
     }
 
-    /* go back to the start of the block */
-    if (lseek(fd, -in_len, SEEK_CUR) < 0) {
-      lp_debug("Failed to seek to block for %s: %s", path, lp_str_error());
+    /* go back to the writing position */
+    if (lseek(fd, write_pos, SEEK_SET) != write_pos) {
+      lp_debug(
+          "Failed to seek to writing pos for %s: %s", path, lp_str_error());
       goto free;
     }
 
     /* write the decrypted full block to the output file */
-    if (out_len != 0 && write(fd, buf, out_len) <= 0) {
+    if (out_len != 0 && write(fd, out_buf, out_len) <= 0) {
       lp_debug("Failed to write output to %s: %s", path, lp_str_error());
+      goto free;
+    }
+
+    /* update the reading & writing position */
+    read_pos += in_len;
+    write_pos += out_len;
+
+    /* go back to the reading position */
+    if (lseek(fd, read_pos, SEEK_SET) != read_pos) {
+      lp_debug(
+          "Failed to seek to reading pos for %s: %s", path, lp_str_error());
       goto free;
     }
 
@@ -149,25 +166,30 @@ void decrypt_handler(char *path) {
       break;
   }
 
-  /* decrypt and write any leftover partial block */
-  if (!lp_rsa_done(&rsa, buf, &out_len)) {
+  /* decrypt any leftover partial block */
+  if (!lp_rsa_done(&rsa, out_buf, &out_len)) {
     lp_debug("Failed to decrypt the last block");
     goto free;
   }
 
-  if (write(fd, buf, out_len) < 0) {
-    lp_debug("Failed to write last block to %s: %s", path, lp_str_error());
-    goto free;
+  /* check if the block is empty (no need to waste time if that's the case) */
+  if (out_len > 0) {
+    /* restore to the last write position */
+    if (lseek(fd, write_pos, SEEK_SET) != write_pos) {
+      lp_debug(
+          "Failed to seek to writing pos for %s: %s", path, lp_str_error());
+      goto free;
+    }
+
+    /* write the last block */
+    if (write(fd, out_buf, out_len) < 0) {
+      lp_debug("Failed to write last block to %s: %s", path, lp_str_error());
+      goto free;
+    }
   }
 
   /* remove remaining block data, secret and IV */
-  if ((size = lseek(fd, 0, SEEK_CUR)) < 0) {
-    lp_debug(
-        "Failed to get the current position in %s: %s", path, lp_str_error());
-    goto free;
-  }
-
-  if (ftruncate(fd, size) != 0) {
+  if (ftruncate(fd, write_pos + out_len) != 0) {
     lp_debug("Failed to truncate %s: %s", path, lp_str_error());
     goto free;
   }

@@ -35,9 +35,21 @@ fi
 # generate random files and store their SHA1 hashes
 pushd "./test/files" > /dev/null || exit 1
 
-for _ in $(seq 1 $(rand 5 20)); do
+for i in $(seq 1 $(rand 5 20)); do
   name="$(openssl rand -hex 4).dat"
-  openssl rand $(rand 50 1000) > "${name}"
+  case $i in
+    1)
+      openssl rand 42 > "${name}"
+      ;;
+
+    2)
+      openssl rand 1073741824 > "${name}"
+      ;;
+
+    *)
+      openssl rand $(rand 2048 55555) > "${name}"
+      ;;
+  esac
   sums+=("$(sha256sum "${name}")")
 done
 

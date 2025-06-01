@@ -1,4 +1,5 @@
 #include "lib/pool.h"
+#include "lib/log.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -8,6 +9,20 @@
 #include <stdio.h>
 #include <errno.h>
 
+/*
+
+ * max length for the work queue, when the length reaches to this value,
+ * lp_pool_add() will hang and wait work queue to get smaller
+
+ * otherwise queue could get too large, especially if the traverser is going
+ * through a large directory, which would fill the queue with lots of lp_work
+ * structures and all of these structures are allocated dynamically so this
+ * would very quickly blow up the heap, causing extremely high memory usage
+
+*/
+#define POOL_QUEUE_MAX 100
+
+/* macros for locking/unlocking the pool structure */
 #define pool_lock()   pthread_mutex_lock(&pool->lock)
 #define pool_unlock() pthread_mutex_unlock(&pool->lock)
 
@@ -40,12 +55,20 @@ void *_pool_worker(void *_pool) {
       continue;
 
     work->func(work->data);
+
+    /* free the work structure */
     free(work);
     work = NULL;
 
-    /* notify lp_pool_wait() */
+    /*
+
+     * update completed work count and decrease the queue length and then
+     * broadcast to the work_cond (notifies lp_pool_wait())
+
+    */
     pool_lock();
-    pool->queue_len--;
+    pool->completed++;
+    pool->len--;
     pthread_cond_broadcast(&pool->work_cond);
     pool_unlock();
   }
@@ -93,7 +116,7 @@ lp_pool_t *lp_pool_init(lp_pool_t *pool, uint32_t size) {
       return NULL;
     }
 
-    /* deattach the thread */
+    /* detach the thread */
     if (pthread_detach(thread) != 0) {
       lp_pool_free(pool);
       return NULL;
@@ -101,6 +124,17 @@ lp_pool_t *lp_pool_init(lp_pool_t *pool, uint32_t size) {
   }
 
   return pool;
+}
+
+void lp_pool_reset(lp_pool_t *pool) {
+  if (NULL == pool)
+    return;
+
+  /* reset the work queue stats */
+  pool_lock();
+  pool->completed = 0;
+  pool->total     = 0;
+  pool_unlock();
 }
 
 bool lp_pool_add(lp_pool_t *pool, lp_pool_func_t func, void *data) {
@@ -111,6 +145,14 @@ bool lp_pool_add(lp_pool_t *pool, lp_pool_func_t func, void *data) {
     errno = EINVAL;
     return false;
   }
+
+  /* check for the queue size and wait if it's too large */
+  pool_lock();
+
+  while (pool->len >= POOL_QUEUE_MAX)
+    pthread_cond_wait(&pool->work_cond, &pool->lock);
+
+  pool_unlock();
 
   /* allocate & setup the new work structure */
   if (NULL == (work = calloc(1, sizeof(struct lp_work))))
@@ -124,7 +166,9 @@ bool lp_pool_add(lp_pool_t *pool, lp_pool_func_t func, void *data) {
 
   work->next  = pool->queue;
   pool->queue = work;
-  pool->queue_len++;
+
+  pool->total++; /* increase total work counter */
+  pool->len++;   /* increase work queue length */
 
   pthread_cond_broadcast(&pool->work_cond);
 
@@ -132,22 +176,22 @@ bool lp_pool_add(lp_pool_t *pool, lp_pool_func_t func, void *data) {
   return true;
 }
 
-bool lp_pool_wait(lp_pool_t *pool, bool display) {
-  /* TODO: implement bar for the display option */
-  (void)display;
-
+void lp_pool_wait(lp_pool_t *pool, bool bar) {
   if (NULL == pool) {
     errno = EINVAL;
-    return false;
+    return;
   }
 
   pool_lock();
 
-  while (pool->queue_len > 0)
+  /* wait for queue to clear out */
+  while (pool->len > 0) {
+    if (bar)
+      lp_bar(pool->total, pool->completed);
     pthread_cond_wait(&pool->work_cond, &pool->lock);
+  }
 
   pool_unlock();
-  return true;
 }
 
 void lp_pool_free(lp_pool_t *pool) {
