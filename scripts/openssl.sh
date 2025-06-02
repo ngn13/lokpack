@@ -46,7 +46,7 @@ tar xf "${file}"
 # configure and build
 pushd "${dir}" > /dev/null
   info "Starting build (using all CPU cores)"
-  ./Configure --prefix=/usr         \
+  ./Configure $@ --prefix=/usr      \
               --openssldir=/etc/ssl \
               --libdir=lib          \
               no-shared             \

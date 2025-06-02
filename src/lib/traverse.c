@@ -45,6 +45,12 @@ void lp_traverser_free(void) {
   if (NULL == lp_trav_pool)
     return;
 
+  /*
+
+   * BUG: this locks the program when called from signal handler, as signal
+   *      handler might be running lp_pool_wait()
+
+  */
   lp_pool_free(lp_trav_pool);
   lp_trav_target  = NULL;
   lp_trav_ignore  = NULL;

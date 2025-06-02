@@ -48,7 +48,7 @@ pushd "${dir}" > /dev/null
   info "Starting build (using all CPU cores)"
   export CPPFLAGS="-I${static}/usr/include"
   export LDFLAGS="-L${static}/usr/lib"
-  ./configure --prefix=/usr     \
+  ./configure $@ --prefix=/usr  \
               --disable-shared  \
               --disable-manual  \
               --without-libssh2 \

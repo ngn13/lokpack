@@ -80,7 +80,7 @@ rm "${pubfile}"
 # build
 info "Building the binaries"
 make clean > /dev/null
-make EXTRAFLAGS="${flags}" \
+make EXTRAFLAGS="${flags} ${@:2}" \
   LP_DEBUG=${debug} LP_PUBKEY="${pubkey}" LP_PRIVKEY="${privkey}"
 
 # strip
