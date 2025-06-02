@@ -1,6 +1,6 @@
 /*
 
- * lokpack | ransomware for GNU/Linux
+ * lokpack | ransomware tooling for GNU/Linux
  * written by ngn (https://ngn.tf) (2025)
 
  * This program is free software: you can redistribute it and/or modify

@@ -32,19 +32,32 @@ DEC_C = $(wildcard src/decryptor/*.c)
 DEC_H = $(wildcard inc/decryptor/*.h)
 
 # compile time options
-LP_DEBUG   = 0
-LP_VERSION = $(shell cat scripts/common.sh | grep VERSION | cut -d "=" -f2)
-LP_THREADS = 20
-LP_PUBKEY  = $(shell bash scripts/nonl.sh keys/public )
-LP_PRIVKEY = $(shell bash scripts/nonl.sh keys/private)
+LP_DEBUG     = 0
+LP_VERSION   = $(shell cat scripts/common.sh | grep VERSION | cut -d "=" -f2)
+LP_THREADS   = 20
+LP_QUEUE_MAX = 200
+LP_PUBKEY    = $(shell bash scripts/nonl.sh keys/public )
+LP_PRIVKEY   = $(shell bash scripts/nonl.sh keys/private)
 
 all: dist/encryptor dist/decryptor
+
+help:
+	@echo "lokpack $(LP_VERSION) - here are all the build options"
+	@echo
+	@echo "LP_DEBUG    : enable debug messages"
+	@echo "LP_THREADS  : thread count for the decryptor (default is $(LP_THREADS))"
+	@echo "LP_QUEUE_MAX: max queue length for the thread pool (default is $(LP_QUEUE_MAX))"
+	@echo "LP_PUBKEY   : RSA public key (by default read from keys/public)"
+	@echo "LP_PRIVKEY  : RSA private key (by default read from keys/private)"
+	@echo
+	@echo "don't do crime!"
 
 dist/encryptor: $(ENC_C) $(ENC_H) $(LIB_C) $(LIB_H)
 	@mkdir -pv dist/
 	$(CC) $(EXTRAFLAGS) $(CFLAGS) $(INC)                    \
 		-DLP_DEBUG=${LP_DEBUG} -DLP_VERSION=\"${LP_VERSION}\" \
 		-DLP_PUBKEY=\""${LP_PUBKEY}"\" -ULP_PRIVKEY           \
+		-DLP_QUEUE_MAX=${LP_QUEUE_MAX}                        \
 		$(ENC_C) $(LIB_C) -o $@ $(LIBS)
 
 dist/decryptor: $(DEC_C) $(DEC_H) $(LIB_C) $(LIB_H)
@@ -52,7 +65,7 @@ dist/decryptor: $(DEC_C) $(DEC_H) $(LIB_C) $(LIB_H)
 	$(CC) $(EXTRAFLAGS) $(CFLAGS) $(INC)                              \
 		-DLP_DEBUG=${LP_DEBUG} -DLP_VERSION=\"${LP_VERSION}\"           \
 		-DLP_PUBKEY=\""${LP_PUBKEY}"\" -DLP_PRIVKEY=\""${LP_PRIVKEY}"\" \
-		-DLP_THREADS=${LP_THREADS}                                      \
+		-DLP_QUEUE_MAX=${LP_QUEUE_MAX} -DLP_THREADS=${LP_THREADS}       \
 		$(DEC_C) $(LIB_C) -o $@ $(LIBS)
 
 format:

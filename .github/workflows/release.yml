@@ -23,24 +23,24 @@ jobs:
       - name: "Build static openssl"
         run: |
           CC="x86_64-linux-gnu-gcc" \
-          LD="x86_64-linux-gnu-gcc" \
-          AS="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
           C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
             ./scripts/openssl.sh linux-x86_64
 
       - name: "Build static curl"
         run: |
           CC="x86_64-linux-gnu-gcc" \
-          LD="x86_64-linux-gnu-gcc" \
-          AS="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
           C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
             ./scripts/curl.sh x86_64-pc-linux-gnu
 
       - name: "Build the static binaries"
         run: |
           CC="x86_64-linux-gnu-gcc" \
-          LD="x86_64-linux-gnu-gcc" \
-          AS="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
           C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
             ./scripts/build.sh -static
 

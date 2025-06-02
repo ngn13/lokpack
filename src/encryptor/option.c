@@ -29,8 +29,8 @@ static option_t options[] = {
     add_str("ftp-pwd", "FTP(S) password", "anonymous"),
 
     add_bool("no-ftp", "Disable stealing files with FTP(S)", false),
+    add_bool("no-bar", "Disable simple ASCII progress bar", false),
     add_bool("destruct", "Self destruct (delete) the program", false),
-    add_bool("progress", "Display a simple ASCII progress bar", true),
 
     /* marks the end of the list */
     {NULL, NULL, 0, 0, NULL, NULL, 0},

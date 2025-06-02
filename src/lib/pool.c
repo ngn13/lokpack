@@ -1,3 +1,4 @@
+#include "lib/config.h"
 #include "lib/pool.h"
 #include "lib/log.h"
 
@@ -9,17 +10,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-/*
-
- * max length for the work queue, when the length reaches to this value,
- * lp_pool_add() will hang and wait work queue to get smaller
-
- * otherwise queue could get too large, especially if the traverser is going
- * through a large directory, which would fill the queue with lots of lp_work
- * structures and all of these structures are allocated dynamically so this
- * would very quickly blow up the heap, causing extremely high memory usage
-
-*/
 #define POOL_QUEUE_MAX 100
 
 /* macros for locking/unlocking the pool structure */
@@ -146,10 +136,21 @@ bool lp_pool_add(lp_pool_t *pool, lp_pool_func_t func, void *data) {
     return false;
   }
 
-  /* check for the queue size and wait if it's too large */
+  /*
+
+   * check if we reached the max work queue length, if so wait for a work to be
+   * completed (so the queue will get smaller), this will obv hang the current
+   * thread
+
+   * otherwise queue could get too large, especially if the traverser is going
+   * through a large directory, which would fill the queue with lots of lp_work
+   * structures and all of these structures are allocated dynamically so this
+   * would very quickly blow up the heap, causing extremely high memory usage
+
+  */
   pool_lock();
 
-  while (pool->len >= POOL_QUEUE_MAX)
+  while (pool->len >= LP_QUEUE_MAX)
     pthread_cond_wait(&pool->work_cond, &pool->lock);
 
   pool_unlock();

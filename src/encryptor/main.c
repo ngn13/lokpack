@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
   }
 
   /* wait for all the threads */
-  lp_traverser_wait(opt_bool("progress"));
+  lp_traverser_wait(!opt_bool("no-bar"));
 
   /*
 
@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
   }
 
   /* wait for all the threads */
-  lp_traverser_wait(opt_bool("progress"));
+  lp_traverser_wait(!opt_bool("no-bar"));
 
   /* check if we quit */
   if (quit)
