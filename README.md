@@ -1,5 +1,8 @@
 # lokpack | ransomware tooling for GNU/Linux
 
+![](https://img.shields.io/github/actions/workflow/status/ngn13/lokpack/test.yml?label=tests)
+![](https://img.shields.io/github/actions/workflow/status/ngn13/lokpack/release.yml?label=release)
+
 lokpack is a free ransomware for modern GNU/Linux systems, written in C.
 
 ![showcase](https://github.com/ngn13/lokpack/assets/78868991/d1d8e490-b7d3-4f21-aeca-368eb0a0a0d8)
