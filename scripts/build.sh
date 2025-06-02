@@ -41,6 +41,7 @@ case "${1}" in
     print "${BOLD}${GREEN}=>${RESET} All debugging symbols will be stripped"
     print "${BOLD}${GREEN}=>${RESET} All optimizations are enabled"
 
+    include="./dist/static/usr/include"
     flags="-O3 -s -static -L./dist/static/usr/lib"
     debug=0
     ;;
@@ -76,6 +77,13 @@ pubkey="$(./scripts/nonl.sh "${pubfile}")"
 
 rm "${privfile}"
 rm "${pubfile}"
+
+# setup the environment variables
+if [ -z "${C_INCLUDE_PATH}" ]; then
+  export C_INCLUDE_PATH+="${include}"
+else
+  export C_INCLUDE_PATH+=":${include}"
+fi
 
 # build
 info "Building the binaries"
