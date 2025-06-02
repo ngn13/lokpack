@@ -39,24 +39,16 @@
 #include <stdio.h>
 
 /* shared handler data */
+static bool quit = false;             /* should we quit? */
 static char pub_hash[LP_SHA256_SIZE]; /* public key hash */
 static char pub_ext[7] = {0}; /* file extension (calculated from hash) */
-
-int quit(int code) {
-  /* free resources */
-  lp_traverser_free();
-  lp_rsa_key_free();
-
-  /* exit (should never return) */
-  exit(code);
-  return code;
-}
 
 void signal_handler(int signal) {
   (void)signal; /* unused */
 
   lp_info("Stopping the program, wait for ongoing operations");
-  quit(EXIT_FAILURE);
+  lp_traverser_stop();
+  quit = true;
 }
 
 void decrypt_handler(char *path) {
@@ -222,11 +214,11 @@ free:
 int main(int argc, char *argv[]) {
   struct sigaction action;  /* signal action */
   char            *exts[2]; /* target extension list */
-  int              i;       /* used in loops and stuff */
+  int              i, code = EXIT_FAILURE;
 
   if (argc <= 1) {
     lp_info("Usage: %s [DIR/FILE]...", argv[0]);
-    return EXIT_SUCCESS;
+    goto end;
   }
 
   /* setup the signal handler */
@@ -241,19 +233,19 @@ int main(int argc, char *argv[]) {
   /* load the private RSA key */
   if (!lp_rsa_key_load()) {
     lp_fail("Failed to load the private key, is the key valid?");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /* calculate the public key hash and the extension for the encrypted files */
   if (NULL == lp_sha256(LP_PUBKEY, pub_hash)) {
     lp_fail("Failed to calculate hash of the public key");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash) !=
       (int)sizeof(pub_ext) - 1) {
     lp_fail("Failed to format the encrypted file extension");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /* setup the traverser */
@@ -268,14 +260,14 @@ int main(int argc, char *argv[]) {
   */
   if (!lp_traverser_init(LP_THREADS, exts, NULL)) {
     lp_fail("Failed to initialize traverser: %s", lp_str_error());
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   lp_traverser_set_mode(R_OK | W_OK);
   lp_traverser_set_handler(decrypt_handler);
 
   /* traverse & decrypt all the specified dirs/files */
-  for (i = 1; i < argc; i++) {
+  for (i = 1; !quit && i < argc; i++) {
     lp_info("Decrypting %s", argv[i]);
     lp_traverser_run(argv[i]);
   }
@@ -283,6 +275,18 @@ int main(int argc, char *argv[]) {
   /* wait for all the threads */
   lp_traverser_wait(true);
 
+  /* check if we quit */
+  if (quit)
+    goto end;
+
   lp_success("Operation completed");
-  return quit(EXIT_SUCCESS);
+  code = EXIT_SUCCESS;
+
+end:
+  /* free resources */
+  lp_traverser_free();
+  lp_rsa_key_free();
+
+  /* return with the exit code */
+  return code;
 }

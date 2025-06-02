@@ -9,7 +9,6 @@
 
 int lp_bar(uint32_t max, uint32_t pos) {
   /* percentage stuff */
-  char  perc_buf[5];
   int   perc, perc_len;
   float cur = (float)pos / (float)max;
 
@@ -27,19 +26,18 @@ int lp_bar(uint32_t max, uint32_t pos) {
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &window) < 0)
     return -1;
 
-  /* convert percentage to string and calculate column size */
-  if ((perc_len = snprintf(perc_buf, sizeof(perc_buf), "%%%3u", perc)) !=
-      (int)sizeof(perc_buf) - 1)
-    return -1;
+  /* print percentage and calculate the bar length */
+  size += printf(LP_LOG_BOLD "\r");
+  size += perc_len = printf("%%%3u (%u/%u) ", perc, pos, max);
 
-  if ((total = window.ws_col - perc_len - 3) <= 0) {
+  if ((total = window.ws_col - perc_len - 2) <= 0) {
     errno = EINVAL;
     return -1;
   }
 
-  /* draw the bar */
+  /* print the bar */
   prog = total * cur;
-  size += printf("\r" LP_LOG_BOLD "%s " LP_LOG_BLUE "[", perc_buf);
+  size += printf(LP_LOG_BLUE "[");
 
   for (i = 0; i < prog; i++)
     size += printf(LP_LOG_BLUE "=");
@@ -50,6 +48,8 @@ int lp_bar(uint32_t max, uint32_t pos) {
     size += printf(LP_LOG_BLUE "-");
 
   size += printf(LP_LOG_BOLD "]" LP_LOG_RESET);
+
+  /* force any buffered data to be written to the stdout */
   fflush(stdout);
   return size;
 }

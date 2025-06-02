@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <errno.h>
 
+/* TODO: maybe add something like lp_join() to join paths */
+
 #define lp_str_error() strerror(errno)
 int lp_openssl_error(void);
 

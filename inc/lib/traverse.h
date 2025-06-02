@@ -14,4 +14,5 @@ void lp_traverser_set_handler(lp_handler_t handler);
 
 /* other operations */
 bool lp_traverser_run(char *path);
+void lp_traverser_stop(void);
 void lp_traverser_wait(bool bar);

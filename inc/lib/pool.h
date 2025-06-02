@@ -10,9 +10,11 @@ typedef struct {
   bool     running;      /* is the pool running */
   uint32_t thread_count; /* total thread count for the pool */
 
-  pthread_mutex_t lock;      /* locked before modifying the pool structure */
-  pthread_cond_t  work_cond; /* used after updating the work queue */
-  pthread_cond_t  quit_cond; /* used for waiting threads to quit */
+  pthread_mutex_t lock; /* locked before modifying the pool structure */
+  pthread_t owner;      /* owner of the pool structure (whoever has the lock) */
+
+  pthread_cond_t work_cond; /* used after updating the work queue */
+  pthread_cond_t quit_cond; /* used for waiting threads to quit */
 
   uint32_t completed; /* completed work count */
   uint32_t total;     /* total work count */

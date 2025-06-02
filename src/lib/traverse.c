@@ -3,6 +3,7 @@
 #include "lib/util.h"
 #include "lib/log.h"
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -24,16 +25,23 @@
 
 #define TRAV_DEF_MODE (R_OK)
 
-static lp_pool_t   *lp_trav_pool    = NULL;          /* traverser thread pool */
-static char       **lp_trav_target  = NULL;          /* target extensions */
-static char       **lp_trav_ignore  = NULL;          /* extensions to ignore */
-static int          lp_trav_mode    = TRAV_DEF_MODE; /* target file mode */
-static lp_handler_t lp_trav_handler = NULL;          /* handler function */
+static pthread_mutex_t lp_trav_lock;            /* thread lock for traverser */
+static bool            lp_trav_running = false; /* is the traverser running? */
+static lp_pool_t      *lp_trav_pool    = NULL;  /* traverser thread pool */
+static char          **lp_trav_target  = NULL;  /* target extensions */
+static char          **lp_trav_ignore  = NULL;  /* extensions to ignore */
+static int             lp_trav_mode    = TRAV_DEF_MODE; /* target file mode */
+static lp_handler_t    lp_trav_handler = NULL;          /* handler function */
+
+#define trav_lock()   pthread_mutex_lock(&lp_trav_lock)
+#define trav_unlock() pthread_mutex_unlock(&lp_trav_lock)
 
 bool lp_traverser_init(uint32_t threads, char **target, char **ignore) {
-  /* thread pool can only be initialized once */
-  if (NULL == lp_trav_pool && threads > 0)
+  /* thread pool & lock can only be initialized once */
+  if (NULL == lp_trav_pool && threads > 0) {
     lp_trav_pool = lp_pool_init(NULL, threads);
+    pthread_mutex_init(&lp_trav_lock, NULL);
+  }
 
   lp_trav_target = target;
   lp_trav_ignore = ignore;
@@ -45,13 +53,10 @@ void lp_traverser_free(void) {
   if (NULL == lp_trav_pool)
     return;
 
-  /*
-
-   * BUG: this locks the program when called from signal handler, as signal
-   *      handler might be running lp_pool_wait()
-
-  */
   lp_pool_free(lp_trav_pool);
+  pthread_mutex_destroy(&lp_trav_lock);
+
+  lp_trav_running = false;
   lp_trav_target  = NULL;
   lp_trav_ignore  = NULL;
   lp_trav_mode    = TRAV_DEF_MODE;
@@ -72,8 +77,19 @@ void lp_traverser_set_handler(lp_handler_t handler) {
 #define trav_file(path)           trav_pool_add(_trav_file, path)
 #define trav_dir(path)            trav_pool_add(_trav_dir, path)
 
+bool _trav_should_stop(void) {
+  bool running = false;
+
+  /* check if the traverser should be running */
+  trav_lock();
+  running = lp_trav_running;
+  trav_unlock();
+
+  return !running;
+}
+
 void _trav_file(void *file_path) {
-  if (NULL != lp_trav_handler)
+  if (!_trav_should_stop() && NULL != lp_trav_handler)
     lp_trav_handler((char *)file_path);
   free(file_path);
 }
@@ -93,13 +109,16 @@ void _trav_dir(void *_dir_path) {
   if ((dir_fd = dirfd(dir_ptr)) < 0)
     goto end;
 
-  while (NULL != (entry = readdir(dir_ptr))) {
+  while (!_trav_should_stop() && NULL != (entry = readdir(dir_ptr))) {
+    /* ignore current and previous directory */
     if (lp_streq(entry->d_name, ".") || lp_streq(entry->d_name, ".."))
       continue;
 
+    /* we are only looking for files and directories */
     if (DT_REG != entry->d_type && DT_DIR != entry->d_type)
       continue;
 
+    /* check for the specified access mode */
     if (faccessat(dir_fd, entry->d_name, lp_trav_mode, 0) != 0)
       continue;
 
@@ -112,6 +131,7 @@ void _trav_dir(void *_dir_path) {
         continue;
     }
 
+    /* get the full target path */
     path_len = strlen(dir_path) + strlen(entry->d_name) + 1;
 
     if (NULL == (path = calloc(1, path_len + 1))) {
@@ -176,6 +196,8 @@ bool lp_traverser_run(char *path) {
   if (NULL == (path = strdup(path)))
     return false; /* errno set by strdup() */
 
+  lp_trav_running = true;
+
   switch (lp_is_dir(path)) {
   case 0: /* directory */
     trav_dir(path);
@@ -191,6 +213,15 @@ bool lp_traverser_run(char *path) {
   }
 
   return true;
+}
+
+void lp_traverser_stop(void) {
+  if (NULL == lp_trav_pool)
+    return;
+
+  trav_lock();
+  lp_trav_running = false;
+  trav_unlock();
 }
 
 void lp_traverser_wait(bool bar) {
