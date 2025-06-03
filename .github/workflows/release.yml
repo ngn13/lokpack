@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - "main"
     tags:
       - v**.**
 
@@ -110,6 +112,7 @@ jobs:
     needs:
       - linux-amd64
       - linux-i386
+    if: github.ref_type == 'tag'
     steps:
       - name: "Checkout the source code"
         uses: actions/checkout@v3
@@ -141,31 +144,9 @@ jobs:
           tar czvf "${name}.tar.gz" "${name}"
 
       - name: "Create release"
-        id: create_release
-        uses: actions/create-release@v1 # WARN: this is unmaintained
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{github.ref}}
-          release_name: lokpack ${{github.ref}}
-          body: |
-            Please see the README file for instructions for using the automated
-            binary builds
-
-      - name: "Upload linux-amd64 archive"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        with:
-          upload_url: ${{steps.create_release.outputs.upload_url}}
-          asset_path: lokpack-${{github.ref_name}}-linux-amd64.tar.gz
-          asset_name: lokpack-${{github.ref_name}}-linux-amd64.tar.gz
-
-      - name: "Upload linux-i386 archive"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        with:
-          upload_url: ${{steps.create_release.outputs.upload_url}}
-          asset_path: lokpack-${{github.ref_name}}-linux-i386.tar.gz
-          asset_name: lokpack-${{github.ref_name}}-linux-i386.tar.gz
+          name: lokpack ${{github.ref_name}}
+          files: |
+            lokpack-${{github.ref_name}}-linux-amd64.tar.gz
+            lokpack-${{github.ref_name}}-linux-i386.tar.gz
