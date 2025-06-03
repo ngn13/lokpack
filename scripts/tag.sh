@@ -8,7 +8,7 @@ fi
 
 source scripts/common.sh
 
-git tag "${VERSION}" && success "Tagged the version ${VERSION}" && exit 0
+git tag "v${VERSION}" && success "Tagged the version ${VERSION}" && exit 0
 
 fail "Failed to tag the version ${VERSION}"
 exit 1
