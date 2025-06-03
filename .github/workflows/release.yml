@@ -7,6 +7,9 @@ on:
     tags:
       - v**.**
 
+permissions:
+  contents: write
+
 jobs:
   # GNU/Linux AMD64 (x86-64)
   linux-amd64:
