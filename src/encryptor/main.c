@@ -21,7 +21,6 @@
 #include "encryptor/option.h"
 
 #include "lib/traverse.h"
-#include "lib/config.h"
 #include "lib/util.h"
 #include "lib/rsa.h"
 #include "lib/log.h"

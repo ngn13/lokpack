@@ -1,4 +1,3 @@
-#include "lib/config.h"
 #include "lib/pool.h"
 #include "lib/log.h"
 

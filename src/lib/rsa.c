@@ -9,7 +9,6 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include "lib/config.h"
 #include "lib/util.h"
 #include "lib/log.h"
 #include "lib/rsa.h"
@@ -17,7 +16,7 @@
 static EVP_PKEY *lp_rsa_key;
 
 bool lp_rsa_key_load(void) {
-#ifdef LP_PRIVKEY
+#ifdef LP_DECRYPTOR
   BIO *bio = BIO_new_mem_buf(LP_PRIVKEY, -1);
 #else
   BIO *bio = BIO_new_mem_buf(LP_PUBKEY, -1);
@@ -29,7 +28,7 @@ bool lp_rsa_key_load(void) {
     return false;
   }
 
-#ifdef LP_PRIVKEY
+#ifdef LP_DECRYPTOR
   lp_rsa_key = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
 #else
   lp_rsa_key = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
@@ -80,7 +79,7 @@ bool lp_rsa_load(lp_rsa_t *rsa) {
 
   secrets[0] = rsa->secret;
 
-#ifdef LP_PRIVKEY
+#ifdef LP_DECRYPTOR
   /*
 
    * BUG: for some reason OpenInit takes a lot of time on weaker hardware, this
@@ -127,7 +126,7 @@ void lp_rsa_free(lp_rsa_t *rsa) {
 
 bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *in_buf, int in_len,
     uint8_t *out_buf, int *out_len) {
-#ifndef LP_PRIVKEY
+#ifdef LP_ENCRYPTOR
   /* check the arguments */
   if (NULL == rsa || NULL == in_buf || NULL == out_buf || NULL == out_len) {
     errno = EINVAL;
@@ -158,7 +157,7 @@ bool lp_rsa_encrypt(lp_rsa_t *rsa, uint8_t *in_buf, int in_len,
 
 bool lp_rsa_decrypt(lp_rsa_t *rsa, uint8_t *in_buf, int in_len,
     uint8_t *out_buf, int *out_len) {
-#ifdef LP_PRIVKEY
+#ifdef LP_DECRYPTOR
   /* check the arguments */
   if (NULL == rsa || NULL == in_buf || NULL == out_buf || NULL == out_len) {
     errno = EINVAL;
@@ -193,7 +192,7 @@ bool lp_rsa_done(lp_rsa_t *rsa, uint8_t *out, int *out_len) {
     return false;
   }
 
-#ifdef LP_PRIVKEY
+#ifdef LP_DECRYPTOR
   if (!EVP_OpenFinal(rsa->ctx, out, out_len)) {
     lp_debug("Failed to decrypt the final data");
     lp_openssl_error();
