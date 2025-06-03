@@ -121,11 +121,11 @@ jobs:
 
       - name: "Setup linux-amd64 archive"
         run: |
-          echo "linux_amd64=lokpack-${{github.ref_name}}-linux-amd64" >> $GITHUB_ENV
-          mkdir -v "${{env.linux_amd64}}"
-          mv -v encryptor decryptor "${{env.linux_amd64}}"
-          cp -v scripts/patch.py "${{env.linux_amd64}}"
-          tar czvf "${{env.linux_amd64}}.tar.gz" "${{env.linux_amd64}}"
+          name="lokpack-${{github.ref_name}}-linux-amd64"
+          mkdir -v "${name}"
+          mv -v encryptor decryptor "${name}"
+          cp -v scripts/patch.py "${name}"
+          tar czvf "${name}.tar.gz" "${name}"
 
       - name: "Download linux-i386 binaries"
         uses: actions/download-artifact@v4
@@ -134,11 +134,11 @@ jobs:
 
       - name: "Setup linux-i386 archive"
         run: |
-          echo "linux_i386=lokpack-${{github.ref_name}}-linux-i386" >> $GITHUB_ENV
-          mkdir -v "${{env.linux_i386}}"
-          mv -v encryptor decryptor "${{env.linux_i386}}"
-          cp -v scripts/patch.py "${{env.linux_i386}}"
-          tar czvf "${{env.linux_i386}}.tar.gz" "${{env.linux_i386}}"
+          name="lokpack-${{github.ref_name}}-linux-i386"
+          mkdir -v "${name}"
+          mv -v encryptor decryptor "${name}"
+          cp -v scripts/patch.py "${name}"
+          tar czvf "${name}.tar.gz" "${name}"
 
       - name: "Create release"
         id: create_release
@@ -158,8 +158,8 @@ jobs:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
           upload_url: ${{steps.create_release.outputs.upload_url}}
-          asset_path: ${{env.linux_amd64}}.tar.gz
-          asset_name: ${{env.linux_amd64}}.tar.gz
+          asset_path: lokpack-${{github.ref_name}}-linux-amd64.tar.gz
+          asset_name: lokpack-${{github.ref_name}}-linux-amd64.tar.gz
 
       - name: "Upload linux-i386 archive"
         uses: actions/upload-release-asset@v1
@@ -167,5 +167,5 @@ jobs:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
           upload_url: ${{steps.create_release.outputs.upload_url}}
-          asset_path: ${{env.linux_i386}}.tar.gz
-          asset_name: ${{env.linux_i386}}.tar.gz
+          asset_path: lokpack-${{github.ref_name}}-linux-i386.tar.gz
+          asset_name: lokpack-${{github.ref_name}}-linux-i386.tar.gz
