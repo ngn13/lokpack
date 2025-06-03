@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.3"
+VERSION="1.4"
 
 RED="\e[31m"
 GREEN="\e[32m"

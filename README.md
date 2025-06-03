@@ -48,6 +48,11 @@ python3 patch.py
 
 ### From the source
 
+To obtain the source code, download the
+[latest](https://github.com/ngn13/lokpack/releases/latest) release archive, or
+clone the repository and checkout the latest tag. **Do not use any other commit
+or branch** unless you are doing development.
+
 #### Setup
 
 - A GNU/Linux system, you may also be able to build on BSD systems
@@ -192,6 +197,9 @@ make LP_DEBUG=1 # uses hardcoded key pair
 # or...
 ./scripts/build.sh -debug # uses random key pair
 ```
+
+Also if you want to submit any changes, feel free to create a pull request. Just
+make sure to target the `dev` branch instead of `main`.
 
 ---
 
