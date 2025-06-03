@@ -9,38 +9,62 @@ fi
 source scripts/common.sh
 
 # create build dir
-mkdir -p static && cd static
-static_path="$PWD"
+mkdir -p dist/static && cd dist/static
+static="${PWD}"
 
-# download & verify the source archive
-_echo "${BLUE}${BOLD}Downloading curl archive"
-wget "$curl_url"
-get_file "$curl_url"
-check_hash "$file" "$curl_hash"
+file="$(get_file "${curl_url}")"
+dir="${file%.tar.gz*}"
+
+if [ -z "${file}" ] || [ -z "${dir}" ]; then
+  fail "Failed to obtain file or directory name"
+  exit 1
+fi
+
+# remove directory from previous build
+rm -rf "${dir}"
+
+# check if the archive is already downloaded
+if [ ! -f "${file}" ] || ! check_hash "${file}" "${curl_hash}"; then
+  # remove the previous download
+  rm -f "${file}"
+
+  # download the archive
+  info "Downloading curl release archive"
+  wget -q --show-progress "${curl_url}"
+
+  # verify the archive
+  if ! check_hash "${file}" "${curl_hash}"; then
+    fail "Hash verification failed for ${file}"
+    exit 1
+  fi
+fi
 
 # extract the source archive
-_echo "${BLUE}${BOLD}Extracting curl archive"
-tar xf "$file"
-dir="${file%.tar.xz*}"
+info "Extracting curl release archive"
+tar xf "${file}"
 
 # configure and build
-pushd "$dir"
-  _echo "${BLUE}${BOLD}Starting build (using all CPU cores)"
-  ./configure --help
-  ./configure --prefix=/usr            \
-            --without-libssh2          \
-            --without-nghttp2          \
-            --without-brotli           \
-            --without-libpsl           \
-            --without-zstd             \
-            --without-zlib             \
-            --disable-ldap             \
-            --without-zstd             \
-            --without-libidn2          \
-            --without-ssl              \
-            --enable-threaded-resolver
-  make -j$(nproc) && make DESTDIR="$static_path" install
-popd
+pushd "${dir}" > /dev/null
+  info "Starting build (using all CPU cores)"
+  export CPPFLAGS="-I${static}/usr/include"
+  export LDFLAGS="-L${static}/usr/lib"
+  ./configure $@ --prefix=/usr  \
+              --disable-shared  \
+              --disable-manual  \
+              --without-libssh2 \
+              --without-nghttp2 \
+              --without-brotli  \
+              --without-libpsl  \
+              --without-zstd    \
+              --without-zlib    \
+              --disable-ldap    \
+              --without-zstd    \
+              --without-libidn2 \
+              --with-openssl    \
+              --enable-threaded-resolver
+  make -j$(nproc)
+  make DESTDIR="${static}" install
+popd > /dev/null
 
-_echo "${GREEN}${BOLD}Build successful, cleaning up"
-rm "$file" && rm -r "$dir"
+success "Build successful, cleaning up"
+rm "${file}" && rm -r "${dir}"

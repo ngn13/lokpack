@@ -1,0 +1,23 @@
+---
+Checks: >-
+  clang-diagnostic-*,
+  clang-analyzer-*,
+    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  portability-*,
+  performance-*,
+WarningsAsErrors: '*'
+HeaderFileExtensions:
+  - ''
+  - h
+  - hh
+  - hpp
+  - hxx
+ImplementationFileExtensions:
+  - c
+  - cc
+  - cpp
+  - cxx
+HeaderFilterRegex: '.*'
+FormatStyle: file
+SystemHeaders: false
+...

@@ -2,30 +2,40 @@
 
 VERSION="1.3"
 
-BOLD="\e[1m"
-RESET="\e[0m"
+RED="\e[31m"
 GREEN="\e[32m"
 BLUE="\e[34m"
-RED="\e[31m"
+BOLD="\e[1m"
+RESET="\e[0m"
 
-_echo() {
+print() {
   echo -e "${1}${RESET}"
 }
 
-openssl_url="https://www.openssl.org/source/openssl-3.1.2.tar.gz"
-openssl_hash="1d7861f969505e67b8677e205afd9ff4"
+fail(){
+  print "${BOLD}${RED}[!]${RESET} ${BOLD}${1}"
+}
 
-curl_url="https://curl.se/download/curl-8.2.1.tar.xz"
-curl_hash="556576a795bdd2c7d10de6886480065f"
+success() {
+  print "${BOLD}${GREEN}[+]${RESET} ${BOLD}${1}"
+}
+
+info(){
+  print "${BOLD}${BLUE}[*]${RESET} ${BOLD}${1}"
+}
+
+openssl_url="https://www.openssl.org/source/openssl-3.5.0.tar.gz"
+openssl_hash="344d0a79f1a9b08029b0744e2cc401a43f9c90acd1044d09a530b4885a8e9fc0"
+
+curl_url="https://curl.se/download/curl-8.13.0.tar.gz"
+curl_hash="c261a4db579b289a7501565497658bbd52d3138fdbaccf1490fa918129ab45bc"
 
 get_file() {
-  file=$(echo $1 | rev | cut -d "/" -f 1 | rev)
+  echo "${1}" | rev | cut -d/ -f1 | rev
 }
 
 check_hash() {
-  if ! echo "$2 $1" | md5sum -c > /dev/null; then
-    echo "[-] Hash verification for $1 failed!"
-    exit 1
-  fi
-  echo "[+] Hash verification success!"
+  hash="$(sha256sum "${1}" | awk '{print $1}')"
+  [[ "${hash}" == "${2}" ]] && return 0
+  return 1
 }

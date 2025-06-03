@@ -9,23 +9,27 @@ fi
 source scripts/common.sh
 
 # vars
-RELDIR="/tmp/lokpack-release"
+reldir="/tmp/lokpack-release"
 
 # build the static binary
 ./scripts/build.sh -static
 
+# create the release directory
+info "Creating the release directory"
+mkdir -p "${reldir}"
+
 # copy the binaries and patch script
-mkdir -p "$RELDIR"
-mv dist/encryptor dist/decryptor "$RELDIR"
-cp scripts/patch.py "$RELDIR"
+info "Copying the release files"
+mv dist/encryptor dist/decryptor "${reldir}"
+cp scripts/patch.py "${reldir}"
 
 # archive all
-_echo "${BLUE}Creating the release archive"
-pushd "$RELDIR" > /dev/null
-  tar czf "$RELDIR/lokpack-${VERSION}.tar.gz" *
+info "Creating the release archive"
+pushd "${reldir}" > /dev/null
+  tar czf "${reldir}/lokpack-${VERSION}.tar.gz" *
 popd > /dev/null
 
-mv "$RELDIR/lokpack-"*".tar.gz" .
-rm -rf "$RELDIR"
+mv "${reldir}/lokpack-"*".tar.gz" .
+rm -r "${reldir}"
 
-_echo "${GREEN}Build completed"
+success "Created the release archive"

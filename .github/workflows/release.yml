@@ -1,0 +1,165 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v**.**
+
+jobs:
+  # GNU/Linux AMD64 (x86-64)
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the source code"
+        uses: actions/checkout@v3
+
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc make sed grep wget awk tar \
+            gcc-x86-64-linux-gnu
+
+      - name: "Build static openssl"
+        run: |
+          CC="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
+          C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
+            ./scripts/openssl.sh linux-x86_64
+
+      - name: "Build static curl"
+        run: |
+          CC="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
+          C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
+            ./scripts/curl.sh x86_64-pc-linux-gnu
+
+      - name: "Build the static binaries"
+        run: |
+          CC="x86_64-linux-gnu-gcc" \
+          LD="x86_64-linux-gnu-ld" \
+          AS="x86_64-linux-gnu-as" \
+          C_INCLUDE_PATH="/usr/x86_64-linux-gnu/include/" \
+            ./scripts/build.sh -static
+
+      - name: "Upload the binaries"
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: |
+            dist/encryptor
+            dist/decryptor
+
+  # GNU/Linux i386 (IA-32)
+  linux-i386:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the source code"
+        uses: actions/checkout@v3
+
+      - name: "Install dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc make sed grep wget awk tar \
+            gcc-i686-linux-gnu
+
+      - name: "Build static openssl"
+        run: |
+          CC="i686-linux-gnu-gcc" \
+          LD="i686-linux-gnu-ld"  \
+          AS="i686-linux-gnu-as"  \
+          C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
+            ./scripts/openssl.sh linux-x86
+
+      - name: "Build static curl"
+        run: |
+          CC="i686-linux-gnu-gcc -m32" \
+          LD="i686-linux-gnu-ld"       \
+          AS="i686-linux-gnu-as"       \
+          C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
+            ./scripts/curl.sh i386-pc-linux-gnu
+
+      - name: "Build the static binaries"
+        run: |
+          CC="i686-linux-gnu-gcc" \
+          LD="i686-linux-gnu-ld"  \
+          AS="i686-linux-gnu-as"  \
+          C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
+            ./scripts/build.sh -static -m32
+
+      - name: "Upload the binaries"
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-i386
+          path: |
+            dist/encryptor
+            dist/decryptor
+
+  # publish the release
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - linux-amd64
+      - linux-i386
+    steps:
+      - name: "Checkout the source code"
+        uses: actions/checkout@v3
+
+      - name: "Download linux-amd64 binaries"
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+
+      - name: "Setup linux-amd64 archive"
+        run: |
+          echo "linux_amd64=lokpack-${{github.ref_name}}-linux-amd64" >> $GITHUB_ENV
+          mkdir -v "${linux_amd64}"
+          mv -v encryptor decryptor "${linux_amd64}"
+          cp -v scripts/patch.py "${linux_amd64}"
+          tar czvf "${linux_amd64}.tar.gz" "${linux_amd64}"
+
+      - name: "Download linux-i386 binaries"
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-i386
+
+      - name: "Setup linux-i386 archive"
+        run: |
+          echo "linux_i386=lokpack-${{github.ref_name}}-linux-i386" >> $GITHUB_ENV
+          mkdir -v "${linux_i386}"
+          mv -v encryptor decryptor "${linux_i386}"
+          cp -v scripts/patch.py "${linux_i386}"
+          tar czvf "${linux_i386}.tar.gz" "${linux_i386}"
+
+      - name: "Create release"
+        id: create_release
+        uses: actions/create-release@v1 # WARN: this is unmaintained
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          tag_name: ${{github.ref}}
+          release_name: lokpack ${{github.ref}}
+          body: |
+            Please see the README file for instructions for using the automated
+            binary builds
+
+      - name: "Upload linux-amd64 archive"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{steps.create_release.outputs.upload_url}}
+          asset_path: ${{env.linux_amd64}}.tar.gz
+          asset_name: ${{env.linux_amd64}}.tar.gz
+
+      - name: "Upload linux-i386 archive"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{steps.create_release.outputs.upload_url}}
+          asset_path: ${{env.linux_i386}}.tar.gz
+          asset_name: ${{env.linux_i386}}.tar.gz
