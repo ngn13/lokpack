@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - "main"
     tags:
       - v**.**
 
@@ -17,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc make sed grep wget awk tar \
+            gcc make sed grep wget gawk tar \
             gcc-x86-64-linux-gnu
 
       - name: "Build static openssl"
@@ -63,7 +65,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc make sed grep wget awk tar \
+            gcc make sed grep wget gawk tar \
             gcc-i686-linux-gnu
 
       - name: "Build static openssl"
