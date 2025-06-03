@@ -48,7 +48,7 @@ DEC_H  = $(wildcard inc/decryptor/*.h)
 DEC_O  = $(patsubst src/decryptor/%.c,dist/%.dec.o,$(DEC_C))
 DEC_O += $(patsubst src/lib/%.c,dist/%.dec.o,$(LIB_C))
 
-all: dist/encryptor dist/decryptor
+all: dist dist/encryptor dist/decryptor
 
 help:
 	@echo "lokpack $(LP_VERSION) - here are all the build options"
@@ -61,12 +61,13 @@ help:
 	@echo
 	@echo "don't do crime!"
 
+dist:
+	mkdir -pv dist
+
 dist/encryptor: $(ENC_O) $(ENC_H) $(LIB_H)
-	@mkdir -pv dist/
 	$(CC) $(EXTRAFLAGS) $(CFLAGS) $(INC) $(ENC_O) -o $@ $(LIBS)
 
 dist/decryptor: $(DEC_O) $(DEC_H) $(LIB_H)
-	@mkdir -pv dist/
 	$(CC) $(EXTRAFLAGS) $(CFLAGS) $(INC) $(DEC_O) -o $@ $(LIBS)
 
 # encryptor object files
