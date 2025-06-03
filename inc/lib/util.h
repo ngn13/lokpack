@@ -15,9 +15,6 @@ int lp_openssl_error(void);
 #define lp_streq(s1, s2) (strcmp(s1, s2) == 0)
 bool lp_startswith(char *str, char *pre, uint32_t pre_len);
 
-#define lp_copy_stat(fd, st)                                                   \
-  (fchown((fd), (st)->st_uid, (st)->st_gid) == 0 &&                            \
-      fchmod((fd), (st)->st_mode) == 0)
 bool lp_is_root(char *path);
 int  lp_is_dir(char *path);
 bool lp_has_ext(char *name, char *ext);

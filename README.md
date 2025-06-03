@@ -5,7 +5,7 @@
 
 lokpack is a free ransomware for modern GNU/Linux systems, written in C
 
-![](https://github.com/user-attachments/assets/bc89fac8-8203-4e80-a270-b208ce8773d5)
+https://github.com/user-attachments/assets/bc89fac8-8203-4e80-a270-b208ce8773d5
 
 ## Features
 
