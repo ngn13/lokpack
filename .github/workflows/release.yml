@@ -75,7 +75,7 @@ jobs:
           LD="i686-linux-gnu-ld"  \
           AS="i686-linux-gnu-as"  \
           C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
-          LIBRARY_PATH="/usr/i686-linux-gnu/lib/" \
+          LIBRARY_PATH="/usr/i686-linux-gnu/lib/:/usr/lib/gcc-cross/i686-linux-gnu/13/" \
             ./scripts/openssl.sh linux-x86
 
       - name: "Build static curl"
@@ -84,7 +84,7 @@ jobs:
           LD="i686-linux-gnu-ld"       \
           AS="i686-linux-gnu-as"       \
           C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
-          LIBRARY_PATH="/usr/i686-linux-gnu/lib/" \
+          LIBRARY_PATH="/usr/i686-linux-gnu/lib/:/usr/lib/gcc-cross/i686-linux-gnu/13/" \
             ./scripts/curl.sh i386-pc-linux-gnu
 
       - name: "Build the static binaries"
@@ -93,7 +93,7 @@ jobs:
           LD="i686-linux-gnu-ld"  \
           AS="i686-linux-gnu-as"  \
           C_INCLUDE_PATH="/usr/i686-linux-gnu/include/" \
-          LIBRARY_PATH="/usr/i686-linux-gnu/lib/" \
+          LIBRARY_PATH="/usr/i686-linux-gnu/lib/:/usr/lib/gcc-cross/i686-linux-gnu/13/" \
             ./scripts/build.sh -static -m32
 
       - name: "Upload the binaries"
